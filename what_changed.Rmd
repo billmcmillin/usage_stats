@@ -1,0 +1,606 @@
+---
+title: What Changed? Detecting statistically significant changes in electronic resource
+  usage with R
+author: "Bill McMillin"
+date: "7/20/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(psych)
+library(ggplot2)
+library(Hmisc)
+library(corrgram)
+library(dplyr)
+library(lubridate)
+library(zoo)
+```
+
+---
+
+Disclaimers
+
+* Data analysis can show where to look, but can't understand the full context in which the data was created
+* Data used here is close enough to the original to demonstrate how the models were built, but it's not the actual data from the sources
+
+
+---
+
+##CRISP-DM
+####Cross Industry Standard Process for Data Mining
+1. Business Understanding
+2. Data Understanding
+3. Data Preparation
+4. Modeling
+5. Evaluation
+6. Deployment
+
+* It's cyclical! Lots of returning to previous steps. 
+
+
+---
+
+##CRISP-DM Stage 1: Business Understanding
+
+###Academic Library 
+* Google Analytics in use on most Web sites across campus - consistently since Summer 2017
+* Electronic resource usage has been tracked consistently via a COUNTER aggregation service since 2014
+* Everybody wants "data analytics"
+
+---
+
+###Questions for the data to answer
+* Should be answerable with an integer, most effective if yes/no
+* Has use of our discovery service increased significantly in the last year?
+* Have article donwloads increased since our new website redesign?
+* Has vendor x's new interface resulted in increased searches? Full-text downloads?
+
+###Questions for the Subject Matter Expert (SME) to answer
+* Why did full-text downloads decrease by x%?
+* Should we continue to pay for access to resource y?
+* Did moving the link to the library's site on the university home page cause a decrease in Web traffic?
+
+---
+
+##CRISP-DM Stage 2: Data Understanding
+###Data Sources
+
+Reports from Google Analytics were exported for
+
+* Libraries Website - monthly sessions
+* Libraries Website - monthly pageviews
+* Libraries Website - monthly number of users
+* Libraries Catalog - monthly sessions
+* Libraries Catalog - monthly pageviews
+* Libraries Catalog - monthly number of users
+* Discovery Service (Summon) - monthly sessions
+* Discovery Service (Summon) - monthly pageviews
+* Discovery Service (Summon) - monthly number of users
+
+## Scope of the Data
+* All variables are continuous except for Month. Month is nominal because it is not an integer that can be ranked. Is December equal to two Junes?
+* Different levels of granularity exist across platforms
+* When comparing across platforms, all data must be converted to highest level of granularity (we're looking at monthly hit counts and session data even though Google Analytics offers much more detail)
+
+---
+
+##CRISP-DM Stage 3: Data Preparation
+### Cleaning
+#### Steps for each Google Analytics Report
+1. In LibreOffice change the month index to ISO-formatted date 
+2. Remove December 2013 data for web traffic because it's incomplete
+3. Replace 0 with NULL to avoid skewing average
+
+####Scripts for automating the cleaning and extraction process
+* Much cleaning can be done in R
+* Complex aggregation (turning the values of multiple rows into one variable) may be easier with other tools
+* https://github.com/billmcmillin/usage_stats/blob/master/DB1_append.py
+
+---
+
+####Importing the Cleaned Data into R
+1. Import the csv file
+```{r importdata}
+raw_usage <- read.table(file="../data/all_consolidated.csv", header=TRUE, sep=",", na.strings = "NULL")
+```
+2. How many variables and observations do we have?
+```{r var_enum}
+ls(raw_usage)
+nrow(raw_usage)
+head(raw_usage)
+describe(raw_usage)
+```
+
+---
+
+###Cleaning and examining the data
+The month is not in a format that R will recognize as a date, so that needs to be converted
+```{r date_convert}
+clean_usage <- raw_usage
+#first convert the factor data type to characters
+char_mon <- as.character(raw_usage$Month)
+clean_usage$Month <- as.Date(paste(char_mon,"-01",sep=""))
+clean_usage$Month
+
+##we'll also want the number of the month
+clean_usage["month_num"] <- month(clean_usage$Month)
+```
+
+---
+
+Examine the set for missing values
+
+```{r complete_obs}
+comp_obs <- clean_usage[complete.cases(raw_usage), ]
+nrow(comp_obs)
+#Which months are included in our analysis?
+comp_obs$Month
+```
+
+--- 
+
+Start to look at variables of interest
+```{r firstplot}
+qplot(comp_obs$Month,comp_obs$off_campus_all_sites_pageviews, main="All campus website hits from off campus by month", xlab="Month", ylab="Hit count - all university sites") + geom_line()
+qplot(comp_obs$Month,comp_obs$on_campus_all_sites_users,  main="All campus website users from on campus by month", xlab="Month", ylab="User count - all university sites") + geom_line()
+```
+
+
+* A quick look at these two plots shows that July of 2014 had both the most users and the fewest hits. Something is off. Given that this was the first month of collection, data errors are likely, so it will be safest to discard the July 2014 data.
+
+---
+
+```{r clean2}
+#get a subset of observations with month greater than 2014-07
+comp_obs2 <- subset(comp_obs, comp_obs$Month > '2014-07-01')
+comp_obs2$Month
+#in case we want to do more cleaning steps, we'll just use cur_data as the name of the most recent data in the cleaning process
+cur_data <- comp_obs2
+cur_df <- as.data.frame(cur_data[,-1])
+#we'll want to access the variable names
+header <- colnames(cur_df)
+```
+
+---
+
+
+* We may want to label our time periods as t = 1,2...n instead of as months, so we can add a variable with:
+```{r clean-add}
+cur_data["period"] <- c(seq(from = 1, to = nrow(cur_data), by = 1))
+print(cur_data$Month[cur_data$period == 12])
+```
+
+###Data Exploration
+
+####Test of Normality
+* Our later tests assume a normal distribution, so let's take a look at the distributions of variables
+```{r normaltest}
+for (i in 2:length(cur_data))
+{
+  swtest <- shapiro.test((cur_data[,i]))
+  pval <- swtest$p.value
+  if(pval < 0.05)
+  {
+    print(header[i])
+    print(shapiro.test(cur_data[,i]))
+  }
+  
+}
+```
+
+---
+
+####Looking for relationships between variables
+* We'll first look for relationships between pairs of variables to determine if any relationships exist that warrant further investigation
+* Covariance is a measure of how much two variables vary in relation to each other. They can have a positive relationship (a rise in temperature coincides with a rise in ice cream sales) or a negative relationship (a rise in temperature coincides with a drop in coat sales)
+* Covariance does not allow us to compare apples and apples. For that, we need to scale the covariance so that we can measure the relative strength of the relationship. For this, we'll use Pearson's Correlation Coefficient, which will give us a result between -1 and 1, -1 indicating a strong negative relationship, 0 no relationship, and 1 a strong positive relationship.
+* We'll want to identify the variables that concern us most
+    * Article Downloads (JR1_retrievals)
+    * Discovery sessions and users (summon_sessions, summon_users)
+    * Users and sessions on the library website (library_site_sessions, library_site_users)
+    
+* A function to run through all variables and find the most significant correlations
+
+```{r corr1}
+#adapted from https://stackoverflow.com/questions/21604997/how-to-find-significant-correlations-in-a-large-dataset
+
+corrgram(cur_df)
+
+#what are the correlations with a P value under 0.05?
+get.correlations <- function(cur_df)
+{
+  correlations <- rcorr(as.matrix(cur_df))
+  for (i in 1:length(cur_df))
+  {
+    for (j in 1:length(cur_df))
+    {
+      if (!is.na(correlations$P[i,j]))
+      {
+        #if the p-value is less than 0.05
+        if(correlations$P[i,j] < 0.05)
+        {
+          #Define thresholds for what constitutes a "strong" correlation
+          positive.rel <- 0.8
+          negative.rel <- -0.8
+          #if the relationship passes our strength test
+           if((correlations$r[i,j] > positive.rel) || (correlations$r[i,j] < negative.rel))
+          {
+            print(paste(rownames(correlations$P)[i], "-" , colnames(correlations$P)[j], ": ", correlations$r[i,j]))
+            
+          }
+
+        }
+      }
+    }
+  }
+  return(correlations)
+}
+
+my.cor <- get.correlations(cur_df)
+  
+```
+
+---
+
+####Looking at relationships of interest
+```{r relationship_isolation}
+
+#We can view individual correlations of interest with 
+cor(cur_df$catalog_users, cur_df$summon_users)
+cor(cur_df$catalog_pageviews, cur_data$JR1_retrievals)
+cor(cur_data$summon_sessions, cur_data$JR1_retrievals)
+cor(cur_data$libraries_site_sessions, cur_data$summon_sessions)
+
+#We want to know how various factors impact the number of sessions in the discovery layer
+qplot(cur_data$Month,cur_data$summon_sessions, 
+      main="Summon Sessions and Library Site Sessions", 
+      xlab="Month", 
+      ylab="Summon session count",
+      col="Summon Sessions") + 
+      geom_line(col = "blue") + 
+      geom_line(aes(y = cur_data$libraries_site_sessions, col="Library Site Sessions", name="All libraries site sessions", labels=c("Library Site Sessions")))
+
+```
+
+---
+
+##Back to Stage 3
+###Always be willing to return to a previous stage and start again
+* We initially discarded pre-2014 data because some variables were incomplete. If our variables of interest had more observations, we'll want to use those
+
+##CRISP-DM Stage 3: Data Preparation
+### Cleaning
+
+###Subset of the data: since our variables of interest have more observations, let's focus on those for now
+
+We want to get one subset of variables that go back to 2013
+```{r complete_data}
+comp_obs3 <- select(clean_usage, Month, libraries_site_pageviews, libraries_site_sessions, libraries_site_users, summon_pageviews, summon_sessions, summon_users)
+comp_obs4 <- comp_obs3[complete.cases(comp_obs3), ]
+
+#give each observation a period number
+
+comp_obs4["period"] <- c(1:nrow(comp_obs4))
+#if data is final subset, assign to cur_data
+cur_data <- comp_obs4
+```
+
+---
+
+3. Take a look at the data
+```{r secondplot}
+qplot(cur_data$period, cur_data$libraries_site_pageviews, main="Library website hits by month", xlab="Month", ylab="Hit count - Library sites") + geom_line()
+qplot(cur_data$period, cur_data$libraries_site_users,  main="Library website users from on campus by month", xlab="Month", ylab="User count - library sites") + geom_line()
+```
+
+---
+
+* Clearly something was wrong with stats collection in Summer 2014, so let's remove those
+```{r error_remove}
+err_remove <- cur_data[-c(28,29,30,31), ]
+cur_data <- err_remove
+qplot(cur_data$period, cur_data$libraries_site_pageviews, main="Library website hits and users by period", xlab="Month", ylab="Hit count - Library sites") + geom_line() +
+geom_line(aes(y = cur_data$libraries_site_sessions, col="Libraries Site Sessions", title="All libraries site sessions"))
+
+qplot(cur_data$period, cur_data$libraries_site_sessions, main="Library website and Summon sessions by month", xlab="Month", ylab="Hit count - Library sites", col="Library Site Sessions") + geom_line() +
+geom_line(aes(y = cur_data$summon_sessions, col="Summon Sessions", title="All libraries site sessions"))
+```
+
+
+---
+
+##CRISP-DM Stage 4: Modeling
+
+####Regression
+ Regression can be used to estimate a trend - a gradual shift - over time $\beta_0 + \beta_1 + \epsilon$
+ 
+* Some assumptions of regression:
+1. Linear relationship between dependent and independent variable
+2. No correlation between any variables and the error
+3. Constant variance of errors 
+4. Error distribution is normal
+
+* A basic linear regression
+* We want to predict the number of sessions (the response or dependent variable) given a month (the explanatory or independent variable)
+
+```{r regress1}
+basic_reg_smn <- lm(summon_sessions~period, data=cur_data)
+basic_reg_smn
+basic_reg_libses <- lm(libraries_site_sessions~period, data=cur_data)
+basic_reg_libses
+```
+
+---
+
+```{r reg_plot1}
+plot(cur_data$summon_sessions~cur_data$period, xlab="Month", ylab="Summon Sessions")
+abline(basic_reg_smn)
+
+plot(cur_data$libraries_site_sessions~cur_data$period, xlab="Month", ylab="Library Site Sessions")
+abline(basic_reg_libses)
+```
+
+* We see two clear trends, but are the models accurate?
+
+---
+
+##CRISP-DM Stage 5: Evaluation
+
+```{r basic_reg_asses}
+summary(basic_reg_smn)
+summary(basic_reg_libses)
+```
+
+* The model for Summon sessions is nowhere near our desired level of accuracy.
+* The model for Library Website Sessions is very promising
+
+---
+###Model predictions vs. actual data
+
+* Actual libraries_site_sessions for January and February 2017 were 78,709 and 82,503
+
+```{r pred_basic_reg_libses}
+new_data <- data.frame(period=c(59, 60))
+pred_basic_reg <- predict(basic_reg_libses, new_data, interval="confidence", level=0.95)
+```
+
+* Predictions are way off, so we'll want to look for a better model
+---
+
+##Back to CRISP-DM Stage 4: Modeling
+
+###Additive decomposition model
+* Essentially means we're adding or subtracting values to reduce the impact of seasons
+* Looking for a linear trend
+* For monthly data, there are 12 seasonal time periods, so we will need 12-1 dummy variables
+* d_Mon1 = 1 if Month is January, 0 otherwise
+* d_Mon2 = 1 if Month is February, 0 otherwise...
+* We'll omit December because we need to avoid multiple collinearity, so the number of periods is always n-1
+* Model is $\beta_0 + \beta_1 (d\_Mon1) + \beta_2 (d\_Mon2) + ... \beta_12 (t) + \epsilon$ 
+
+* So when we want to know what value to expect in January, our model is:
+E(y | t, Month=1) = $\beta_0 + \beta_1 (1) + \beta_2 (0) + ... \beta_12$ (t)
+
+* $\beta_{12}$ (t) is the same for every month we look at. This gives us the slope of the trend line
+
+* The model for the 12th month (or whatever our n-1 is) is: $\beta_0 + \beta_12$ (t)
+
+---
+
+```{r seasonal_libses}
+#we want the month numbers as a factor so they can be used as cateogircal variables
+cur_data$d_Mon <- as.factor(month(cur_data$Month) %% 12)
+seasonal.model <- lm(libraries_site_sessions~d_Mon, data=cur_data)
+seasonal.model2 <- lm(summon_sessions~d_Mon, data=cur_data)
+```
+
+##CRISP-DM Stage 5: Evaluation
+
+```{r seasonal_smn}
+summary(seasonal.model)
+summary(seasonal.model2)
+```
+
+* The attempt to reduce the seasonal effect has made the library site sessions model worse. 
+
+* The first regression on Summon sessions did not yield a useful model, but this model looks promising.
+
+```{r smn_pred}
+#actual Summon sessions for January and February 2017: 26600, 34370
+new_data <- data.frame(d_Mon = "1")
+pred_basic_reg_smn_jan <- predict(seasonal.model2, new_data, interval="confidence", level=0.95)
+new_data <- data.frame(d_Mon = "2")
+pred_basic_reg_smn_feb <- predict(seasonal.model2, new_data, interval="confidence", level=0.95)
+```
+
+* Seasonal Model 2 for Summon sessions seems to be working. 
+
+---
+###Different intervals for different months
+```{r monthly_intervals}
+new_data_may <- data.frame(d_Mon = "5")
+pred_basic_reg_smn_may <- predict(seasonal.model2, new_data_may, interval="confidence", level=0.95)
+pred_basic_reg_smn_jan
+pred_basic_reg_smn_jan[3] - pred_basic_reg_smn_jan[2]
+pred_basic_reg_smn_may
+pred_basic_reg_smn_may[3] - pred_basic_reg_smn_may[2]
+```
+
+---
+
+* The same thing done manually
+
+```{r dummy_months}
+#create a new variable for each month
+dummy.vars <- function(col,i){
+  new_val <- col
+  for (j in col){
+    if (col[j] %% 12 == i){
+      new_val[j] = 1
+    }  
+    else
+    {
+      new_val[j] = 0
+    }
+  } 
+  return(new_val)
+}
+
+for (m in 1:11){
+  new_var <- paste("d_Mon", m, sep= "")
+  dum_var <- dummy.vars(month(cur_data$Month), m)
+  cur_data[paste("d_Mon", m, sep="")] <- dum_var
+}
+#head(cur_data)
+
+# remember that period 1 corresponds to August...period 0 to July
+# turn the periods into categorical variables with each number representing a level
+cur_data$d_Mon <- as.factor(month(cur_data$Month) %% 12)
+seasonal.model <- lm(libraries_site_sessions~Month+d_Mon1+d_Mon2+d_Mon3+d_Mon4+d_Mon5+d_Mon6+d_Mon7+d_Mon8+d_Mon9+d_Mon10+d_Mon11, data=cur_data)
+summary(seasonal.model)
+confint(seasonal.model, level=0.95)
+
+#seasonal.model2 <- lm(libraries_site_sessions~Month+d_Mon1+d_Mon2+d_Mon3+d_Mon4+d_Mon5+d_Mon6+d_Mon7+d_Mon8+d_Mon9+d_Mon10+d_Mon11, data=cur_data)
+```
+
+---
+
+##Back to CRISP-DM Stage 4: Modeling
+
+####Multiplicative Decomposition
+* Trend x Seasonal % change x error
+* Can we isolate the seasonal effect (which would leave us with the trend)?
+
+1. What is our seasonal period? Months: 12 periods
+2. Develop a moving average forecast for the number of periods 
+
+```{r MA}
+#start with period 13
+rolling.mean <- rollmean(cur_data$libraries_site_sessions, 12, na.pad = FALSE)
+
+#manually
+ma <- seq(13:58)
+for(i in 13:(nrow(cur_data))){
+  last12 <- cur_data$period[(i-12):(i-1)]
+  ma[i-12] <- mean(cur_data$libraries_site_sessions[last12]) 
+}
+```
+
+3. Find the ratio to the moving average
+```{r ratio}
+cur_forecast <- cur_data[13:nrow(cur_data),]
+cur_forecast["ratio"] <- cur_forecast$libraries_site_sessions / ma
+```
+
+
+4. Find the average ratio for each period
+```{r avg_ratio}
+#Unadjusted seasonal indexes
+unadj_seas_ind <- seq(1:12)
+for (i in 1:12){
+  unadj_seas_ind[i] <- mean(cur_forecast$ratio[(cur_forecast$period %% 12 == i)], na.rm = TRUE)
+}
+#add ratio to [12]
+unadj_seas_ind[12] <- mean(cur_forecast$ratio[(cur_forecast$period %% 12 == 0)], na.rm=TRUE)
+unadj_seas_ind
+grp_avg <- mean(unadj_seas_ind, na.rm = TRUE)
+```
+
+* The mean of the unadjusted seasonal index reflects the trend. We don't want the trend included as we're trying to isolate the seasonal effect
+
+5. Adjust ratios
+* Divide each ratio by the average of the ratios - this sets the average index to 1
+
+```{r adjust_ratio}
+adjusted_ratios <- unadj_seas_ind / grp_avg
+```
+
+6. Adjust the time series
+* For each observation, divide the observation by its adjusted seasonal index
+
+```{r series_adjust}
+ns_sessions <- c(seq(1:nrow(cur_data)))
+for (i in 1:nrow(cur_data)){
+  #multiply the observed value by its corresponding adjusted index
+  if(i %% 12 != 0)
+  {
+    ns_sessions[i] <- (cur_data$libraries_site_sessions[i] * adjusted_ratios[(i %% 12)]) 
+  }
+  else{
+    ns_sessions[i] <- (cur_data$libraries_site_sessions[i] * adjusted_ratios[12])
+  }
+}
+
+#How much has the index changed our data?
+cur_data$libraries_site_sessions - ns_sessions
+```
+
+---
+
+##CRISP-DM Stage 5: Evaluation
+
+### Build a model with seasonally-adjusted data
+
+```{r seas_adj_sess}
+#add adjusted values to the dataframe
+cur_data["seas_sess"] <- ns_sessions
+seasonal.model3 <- lm(seas_sess~period, data=cur_data)
+summary(seasonal.model3)
+confint(seasonal.model3, level=0.95)
+```
+
+* Big difference. 
+---
+
+```{r plot_seasonal}
+plot(cur_data$seas_sess~cur_data$period, xlab="Month", ylab="Library Site Sessions - Seasonally adjusted")
+abline(seasonal.model3)
+```
+
+---
+
+###Compare the model's predictions to actual values
+
+```{r pred}
+#New data = January, February of 2017, so use the period numbers
+new_data <- data.frame(period=c(59,60))
+pred_sessions <- predict(seasonal.model3, new_data, interval="confidence", level=0.95)
+```
+
+* Actual values, seasonally adjusted, were:
+```{r pred_sess}
+actual_sessions <- c(78771, 82514)
+adjusted_actual <- c(actual_sessions[1] * adjusted_ratios[1], actual_sessions[2] * adjusted_ratios[2])
+```
+
+* This model just isn't working. We likely have a problem of overfitting and should not deploy it.
+
+---
+
+##CRISP-DM Stage 6: Deployment
+
+* Of the two variables of interest, we could only develop a reliable model for one of them, the number of Summon sessions per month
+* As data is collected, continue to update the model and compare it to predictions, keeping in mind that prediction intervals vary by month. Luckily, it's more accurate during the semester.
+* What if new data falls outside the prediction interval? 
+  - Either the model is incorrect or something has changed
+  - First, review the data and the model
+  - If the data and model aren't showing any red flags, consult the SME
+
+---
+
+##Sources
+
+Grus, Joel. (2015). *Data Science from Scratch*. Sebastopol, CA : O'Reilly Media. http://olc1.ohiolink.edu:80/record=b36274979~S0
+
+Davies, Tilman M. (2016). *The book of R: a first course in proramming and statistics*. San Francisco: No Starch Press.
+
+Jason Delaney's videos on time series data
+http://www.ggc.edu/about-ggc/directory/jason-delaney
+https://www.youtube.com/channel/UCsF1NvsObHQ33-alJ_RuBIw
+
+Additional issues in time series data
+https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/41854.pdf
+
+http://dmr.cs.umn.edu/Papers/P1999_6.pdf
