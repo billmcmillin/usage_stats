@@ -1,0 +1,1208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Bill McMillin" />
+  <title>What Changed? Detecting statistically significant changes in electronic resource usage with R</title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; color: #aaaaaa; border-right: 1px solid #aaaaaa; }
+td.sourceCode { padding-left: 5px; }
+code > span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code > span.dt { color: #902000; } /* DataType */
+code > span.dv { color: #40a070; } /* DecVal */
+code > span.bn { color: #40a070; } /* BaseN */
+code > span.fl { color: #40a070; } /* Float */
+code > span.ch { color: #4070a0; } /* Char */
+code > span.st { color: #4070a0; } /* String */
+code > span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code > span.ot { color: #007020; } /* Other */
+code > span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code > span.fu { color: #06287e; } /* Function */
+code > span.er { color: #ff0000; font-weight: bold; } /* Error */
+code > span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+code > span.cn { color: #880000; } /* Constant */
+code > span.sc { color: #4070a0; } /* SpecialChar */
+code > span.vs { color: #4070a0; } /* VerbatimString */
+code > span.ss { color: #bb6688; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { color: #19177c; } /* Variable */
+code > span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code > span.op { color: #666666; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #bc7a00; } /* Preprocessor */
+code > span.at { color: #7d9029; } /* Attribute */
+code > span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code > span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code > span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+  </style>
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+    href="http://www.w3.org/Talks/Tools/Slidy2/styles/slidy.css" />
+  <script src="http://www.w3.org/Talks/Tools/Slidy2/scripts/slidy.js"
+    charset="utf-8" type="text/javascript"></script>
+</head>
+<body>
+<div class="slide titlepage">
+  <h1 class="title">What Changed? Detecting statistically significant changes in electronic resource usage with R</h1>
+  <p class="author">
+Bill McMillin
+  </p>
+  <p class="date">7/20/2017</p>
+</div>
+<div class="slide section level2">
+
+<p>Disclaimers</p>
+<ul>
+<li>Data analysis can show where to look, but can't understand the full context in which the data was created</li>
+<li>Data used here is close enough to the original to demonstrate how the models were built, but it's not the actual data from the sources</li>
+</ul>
+</div>
+<div id="crisp-dm" class="slide section level2">
+<h2>CRISP-DM</h2>
+<h4 id="cross-industry-standard-process-for-data-mining">Cross Industry Standard Process for Data Mining</h4>
+<ol style="list-style-type: decimal">
+<li>Business Understanding</li>
+<li>Data Understanding</li>
+<li>Data Preparation</li>
+<li>Modeling</li>
+<li>Evaluation</li>
+<li>Deployment</li>
+</ol>
+<ul>
+<li>It's cyclical! Lots of returning to previous steps.</li>
+</ul>
+</div>
+<div id="crisp-dm-stage-1-business-understanding" class="slide section level2">
+<h2>CRISP-DM Stage 1: Business Understanding</h2>
+<h3 id="academic-library">Academic Library</h3>
+<ul>
+<li>Google Analytics in use on most Web sites across campus - consistently since Summer 2017</li>
+<li>Electronic resource usage has been tracked consistently via a COUNTER aggregation service since 2014</li>
+<li>Everybody wants &quot;data analytics&quot;</li>
+</ul>
+</div>
+<div class="slide section level2">
+
+<h3 id="questions-for-the-data-to-answer">Questions for the data to answer</h3>
+<ul>
+<li>Should be answerable with an integer, most effective if yes/no</li>
+<li>Has use of our discovery service increased significantly in the last year?</li>
+<li>Have article donwloads increased since our new website redesign?</li>
+<li>Has vendor x's new interface resulted in increased searches? Full-text downloads?</li>
+</ul>
+<h3 id="questions-for-the-subject-matter-expert-sme-to-answer">Questions for the Subject Matter Expert (SME) to answer</h3>
+<ul>
+<li>Why did full-text downloads decrease by x%?</li>
+<li>Should we continue to pay for access to resource y?</li>
+<li>Did moving the link to the library's site on the university home page cause a decrease in Web traffic?</li>
+</ul>
+</div>
+<div id="crisp-dm-stage-2-data-understanding" class="slide section level2">
+<h2>CRISP-DM Stage 2: Data Understanding</h2>
+<h3 id="data-sources">Data Sources</h3>
+<p>Reports from Google Analytics were exported for</p>
+<ul>
+<li>Libraries Website - monthly sessions</li>
+<li>Libraries Website - monthly pageviews</li>
+<li>Libraries Website - monthly number of users</li>
+<li>Libraries Catalog - monthly sessions</li>
+<li>Libraries Catalog - monthly pageviews</li>
+<li>Libraries Catalog - monthly number of users</li>
+<li>Discovery Service (Summon) - monthly sessions</li>
+<li>Discovery Service (Summon) - monthly pageviews</li>
+<li>Discovery Service (Summon) - monthly number of users</li>
+</ul>
+</div>
+<div id="scope-of-the-data" class="slide section level2">
+<h2>Scope of the Data</h2>
+<ul>
+<li>All variables are continuous except for Month. Month is nominal because it is not an integer that can be ranked. Is December equal to two Junes?</li>
+<li>Different levels of granularity exist across platforms</li>
+<li>When comparing across platforms, all data must be converted to highest level of granularity (we're looking at monthly hit counts and session data even though Google Analytics offers much more detail)</li>
+</ul>
+</div>
+<div id="crisp-dm-stage-3-data-preparation" class="slide section level2">
+<h2>CRISP-DM Stage 3: Data Preparation</h2>
+<h3 id="cleaning">Cleaning</h3>
+<h4 id="steps-for-each-google-analytics-report">Steps for each Google Analytics Report</h4>
+<ol style="list-style-type: decimal">
+<li>In LibreOffice change the month index to ISO-formatted date</li>
+<li>Remove December 2013 data for web traffic because it's incomplete</li>
+<li>Replace 0 with NULL to avoid skewing average</li>
+</ol>
+<h4 id="scripts-for-automating-the-cleaning-and-extraction-process">Scripts for automating the cleaning and extraction process</h4>
+<ul>
+<li>Much cleaning can be done in R</li>
+<li>Complex aggregation (turning the values of multiple rows into one variable) may be easier with other tools</li>
+<li>https://github.com/billmcmillin/usage_stats/blob/master/DB1_append.py</li>
+</ul>
+</div>
+<div class="slide section level2">
+
+<h4 id="importing-the-cleaned-data-into-r">Importing the Cleaned Data into R</h4>
+<ol style="list-style-type: decimal">
+<li>Import the csv file</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">raw_usage &lt;-<span class="st"> </span><span class="kw">read.table</span>(<span class="dt">file=</span><span class="st">&quot;../data/all_consolidated.csv&quot;</span>, <span class="dt">header=</span><span class="ot">TRUE</span>, <span class="dt">sep=</span><span class="st">&quot;,&quot;</span>, <span class="dt">na.strings =</span> <span class="st">&quot;NULL&quot;</span>)</code></pre></div>
+<ol start="2" style="list-style-type: decimal">
+<li>How many variables and observations do we have?</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">ls</span>(raw_usage)</code></pre></div>
+<pre><code>##  [1] &quot;BR1&quot;                            &quot;catalog_pageviews&quot;             
+##  [3] &quot;catalog_sessions&quot;               &quot;catalog_users&quot;                 
+##  [5] &quot;DB1_record_views&quot;               &quot;DB1_result_clicks&quot;             
+##  [7] &quot;DB1_searches&quot;                   &quot;DB1_sessions&quot;                  
+##  [9] &quot;JR1_retrievals&quot;                 &quot;libraries_site_pageviews&quot;      
+## [11] &quot;libraries_site_sessions&quot;        &quot;libraries_site_users&quot;          
+## [13] &quot;Month&quot;                          &quot;off_campus_all_sites_pageviews&quot;
+## [15] &quot;off_campus_all_sites_sessions&quot;  &quot;off_campus_all_sites_users&quot;    
+## [17] &quot;on_campus_all_sites_pageviews&quot;  &quot;on_campus_all_sites_sessions&quot;  
+## [19] &quot;on_campus_all_sites_users&quot;      &quot;summon_pageviews&quot;              
+## [21] &quot;summon_sessions&quot;                &quot;summon_users&quot;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">nrow</span>(raw_usage)</code></pre></div>
+<pre><code>## [1] 64</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">head</span>(raw_usage)</code></pre></div>
+<pre><code>##     Month off_campus_all_sites_pageviews off_campus_all_sites_sessions
+## 1 2012-01                             NA                            NA
+## 2 2012-02                             NA                            NA
+## 3 2012-03                             NA                            NA
+## 4 2012-04                             NA                            NA
+## 5 2012-05                             NA                            NA
+## 6 2012-06                             NA                            NA
+##   off_campus_all_sites_users on_campus_all_sites_pageviews
+## 1                         NA                            NA
+## 2                         NA                            NA
+## 3                         NA                            NA
+## 4                         NA                            NA
+## 5                         NA                            NA
+## 6                         NA                            NA
+##   on_campus_all_sites_sessions on_campus_all_sites_users
+## 1                           NA                        NA
+## 2                           NA                        NA
+## 3                           NA                        NA
+## 4                           NA                        NA
+## 5                           NA                        NA
+## 6                           NA                        NA
+##   libraries_site_pageviews libraries_site_sessions libraries_site_users
+## 1                   437517                  240274               137719
+## 2                   416660                  242389               139184
+## 3                   346238                  205562               121410
+## 4                   421705                  249439               140058
+## 5                   411641                  245991               130575
+## 6                   232712                  131941                68827
+##   catalog_pageviews catalog_sessions catalog_users summon_pageviews
+## 1                11               11             9               NA
+## 2                 0                0             0           129071
+## 3              1258               30            18           107908
+## 4               148                4             3           164398
+## 5               127               15             5           176487
+## 6                43               11             9            78581
+##   summon_sessions summon_users JR1_retrievals BR1 DB1_searches
+## 1              NA           NA             NA  NA           NA
+## 2           28354        14881             NA  NA           NA
+## 3           24337        13109             NA  NA           NA
+## 4           32273        16241             NA  NA           NA
+## 5           36029        17244             NA  NA           NA
+## 6           16179         8475             NA  NA           NA
+##   DB1_sessions DB1_record_views DB1_result_clicks
+## 1           NA               NA                NA
+## 2           NA               NA                NA
+## 3           NA               NA                NA
+## 4           NA               NA                NA
+## 5           NA               NA                NA
+## 6           NA               NA                NA</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">describe</span>(raw_usage)</code></pre></div>
+<pre><code>## raw_usage 
+## 
+##  22  Variables      64  Observations
+## ---------------------------------------------------------------------------
+## Month 
+##        n  missing distinct 
+##       64        0       64 
+## 
+## lowest :         2012-01 2012-02 2012-03 2012-04
+## highest: 2016-11 2016-12 2017-01 2017-02 2017-03
+## ---------------------------------------------------------------------------
+## off_campus_all_sites_pageviews 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       34       30       34        1  9371461 10216852  3040690  3717012 
+##      .25      .50      .75      .90      .95 
+##  4189599  5025962  5461030  6318733  6765830 
+##                                                                       
+## Value        1500000   2000000   3500000   4000000   4500000   5000000
+## Frequency          1         1         2         5         3        10
+## Proportion     0.029     0.029     0.059     0.147     0.088     0.294
+##                                                             
+## Value        5500000   6000000   6500000   7000000 159500000
+## Frequency          7         1         2         1         1
+## Proportion     0.206     0.029     0.059     0.029     0.029
+## ---------------------------------------------------------------------------
+## off_campus_all_sites_sessions 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       33       31       33        1  1705539   343080  1152359  1341652 
+##      .25      .50      .75      .90      .95 
+##  1579658  1800016  1928174  1977192  2011710 
+## 
+## lowest :  459293  892557 1325560 1341519 1342184
+## highest: 1962604 1980839 2010471 2013569 2097284
+## ---------------------------------------------------------------------------
+## off_campus_all_sites_users 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       33       31       33        1   675000   127848   496293   575655 
+##      .25      .50      .75      .90      .95 
+##   635404   687697   731818   761306   797239 
+## 
+## lowest :  215313  390005  567152  572529  588157
+## highest:  761121  761352  788001  811097 1031082
+## ---------------------------------------------------------------------------
+## on_campus_all_sites_pageviews 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       39       25       39        1  1884188   684089   927874   956022 
+##      .25      .50      .75      .90      .95 
+##  1546636  2017640  2200134  2653493  2756755 
+## 
+## lowest :  802053  840741  937555  946894  958304
+## highest: 2646888 2679913 2741307 2895786 3013732
+## ---------------------------------------------------------------------------
+## on_campus_all_sites_sessions 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       39       25       39        1   777822   328778   313523   336509 
+##      .25      .50      .75      .90      .95 
+##   556458   832962   948695  1143116  1153880 
+## 
+## lowest :  299071  307357  314208  335977  336642
+## highest: 1141523 1149490 1152374 1167437 1363493
+## ---------------------------------------------------------------------------
+## on_campus_all_sites_users 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       39       25       39        1   217649   114657    81002    86175 
+##      .25      .50      .75      .90      .95 
+##   161304   207786   274304   357686   412793 
+## 
+## lowest :  76988  78012  81334  85164  86428, highest: 344792 409263 412245 417725 458796
+## ---------------------------------------------------------------------------
+## libraries_site_pageviews 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       63        1       63        1   217895   122213    23976   106680 
+##      .25      .50      .75      .90      .95 
+##   157444   204708   269299   384002   414515 
+## 
+## lowest :    155    177   1001  16541  90892, highest: 411641 414834 416660 421705 437517
+## ---------------------------------------------------------------------------
+## libraries_site_sessions 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       63        1       63        1   120076    74094    15327    52096 
+##      .25      .50      .75      .90      .95 
+##    80368   108162   139934   221567   242178 
+## 
+## lowest :     83    117   9072  12427  41429, highest: 240274 242389 245115 245991 249439
+## ---------------------------------------------------------------------------
+## libraries_site_users 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       63        1       63        1    59547    43900     7436    20738 
+##      .25      .50      .75      .90      .95 
+##    30284    51499    76083   121163   130541 
+## 
+## lowest :     79     99    161   6229  18298, highest: 130231 130575 137719 139184 140058
+## ---------------------------------------------------------------------------
+## catalog_pageviews 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       63        1       62        1    78581    61966     12.9     37.4 
+##      .25      .50      .75      .90      .95 
+##   2070.5  88004.0 114317.5 138575.6 165805.9 
+## 
+## lowest :      0      3     11     30     34, highest: 154969 167010 169413 180430 194813
+## ---------------------------------------------------------------------------
+## catalog_sessions 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       63        1       60        1    12891     9923      4.0      6.4 
+##      .25      .50      .75      .90      .95 
+##     49.0  14735.0  18967.5  22801.6  25075.8 
+## 
+## lowest :     0     3     4     5     6, highest: 23823 25215 26423 27470 29864
+## ---------------------------------------------------------------------------
+## catalog_users 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       63        1       57        1     6498     5131      3.0      5.0 
+##      .25      .50      .75      .90      .95 
+##     18.5   7490.0   9507.0  11819.4  12767.9 
+## 
+## lowest :     0     2     3     4     5, highest: 12641 12782 14017 14711 15875
+## ---------------------------------------------------------------------------
+## summon_pageviews 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       62        2       62        1   131895    59111    54064    78660 
+##      .25      .50      .75      .90      .95 
+##    89794   126264   176471   204644   208119 
+## 
+## lowest :  39724  46681  50593  53232  69869, highest: 207086 208173 218593 228999 243986
+## ---------------------------------------------------------------------------
+## summon_sessions 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       62        2       62        1    25960     9370    15136    15972 
+##      .25      .50      .75      .90      .95 
+##    18048    26813    33034    35957    37338 
+## 
+## lowest : 12223 13799 14618 15135 15146, highest: 37329 37338 38181 39506 40205
+## ---------------------------------------------------------------------------
+## summon_users 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       62        2       62        1    12853     4402     7347     7899 
+##      .25      .50      .75      .90      .95 
+##     8776    13533    16124    17322    17710 
+## 
+## lowest :  7088  7189  7317  7337  7533, highest: 17589 17716 18104 20104 20504
+## ---------------------------------------------------------------------------
+## JR1_retrievals 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       36       28       36        1   146409    43951    93908    96278 
+##      .25      .50      .75      .90      .95 
+##   116069   149737   171105   188149   203824 
+## 
+## lowest :  59062  89218  95472  95851  96704, highest: 187212 189086 199427 217016 222864
+## ---------------------------------------------------------------------------
+## BR1 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       36       28       36        1    31778    15684    12928    16594 
+##      .25      .50      .75      .90      .95 
+##    21001    31063    41781    51232    55413 
+## 
+## lowest :  6590 12406 13102 15623 17565, highest: 49325 53140 55262 55867 58278
+## ---------------------------------------------------------------------------
+## DB1_searches 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       36       28       36        1   301221   176414    93385   112040 
+##      .25      .50      .75      .90      .95 
+##   186124   265755   440438   502309   540238 
+## 
+## lowest :  56596  74171  99790 110628 113453, highest: 501846 502772 531451 566601 596172
+## ---------------------------------------------------------------------------
+## DB1_sessions 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       36       28       35        1    970.1    314.6    635.8    655.0 
+##      .25      .50      .75      .90      .95 
+##    790.5    893.0   1028.8   1294.5   1752.0 
+## 
+## lowest :  559  617  642  646  664, highest: 1286 1303 1732 1812 1845
+## ---------------------------------------------------------------------------
+## DB1_record_views 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       36       28       36        1    53821    31855    22216    24124 
+##      .25      .50      .75      .90      .95 
+##    31748    46788    70542    87484    90260 
+## 
+## lowest :  20776  21749  22372  23393  24854, highest:  87005  87962  90202  90434 182014
+## ---------------------------------------------------------------------------
+## DB1_result_clicks 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##       36       28       36        1    80582    40807    35772    38192 
+##      .25      .50      .75      .90      .95 
+##    49623    76194   106415   133546   143302 
+## 
+## lowest :  34131  35571  35839  37902  38482, highest: 130334 136758 141990 147239 147905
+## ---------------------------------------------------------------------------</code></pre>
+</div>
+<div class="slide section level2">
+
+<h3 id="cleaning-and-examining-the-data">Cleaning and examining the data</h3>
+<p>The month is not in a format that R will recognize as a date, so that needs to be converted</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">clean_usage &lt;-<span class="st"> </span>raw_usage
+<span class="co">#first convert the factor data type to characters</span>
+char_mon &lt;-<span class="st"> </span><span class="kw">as.character</span>(raw_usage$Month)
+clean_usage$Month &lt;-<span class="st"> </span><span class="kw">as.Date</span>(<span class="kw">paste</span>(char_mon,<span class="st">&quot;-01&quot;</span>,<span class="dt">sep=</span><span class="st">&quot;&quot;</span>))
+clean_usage$Month</code></pre></div>
+<pre><code>##  [1] &quot;2012-01-01&quot; &quot;2012-02-01&quot; &quot;2012-03-01&quot; &quot;2012-04-01&quot; &quot;2012-05-01&quot;
+##  [6] &quot;2012-06-01&quot; &quot;2012-07-01&quot; &quot;2012-08-01&quot; &quot;2012-09-01&quot; &quot;2012-10-01&quot;
+## [11] &quot;2012-11-01&quot; &quot;2012-12-01&quot; &quot;2013-01-01&quot; &quot;2013-02-01&quot; &quot;2013-03-01&quot;
+## [16] &quot;2013-04-01&quot; &quot;2013-05-01&quot; &quot;2013-06-01&quot; &quot;2013-07-01&quot; &quot;2013-08-01&quot;
+## [21] &quot;2013-09-01&quot; &quot;2013-10-01&quot; &quot;2013-11-01&quot; &quot;2013-12-01&quot; &quot;2014-01-01&quot;
+## [26] &quot;2014-02-01&quot; &quot;2014-03-01&quot; &quot;2014-04-01&quot; &quot;2014-05-01&quot; &quot;2014-06-01&quot;
+## [31] &quot;2014-07-01&quot; &quot;2014-08-01&quot; &quot;2014-09-01&quot; &quot;2014-10-01&quot; &quot;2014-11-01&quot;
+## [36] &quot;2014-12-01&quot; &quot;2015-01-01&quot; &quot;2015-02-01&quot; &quot;2015-03-01&quot; &quot;2015-04-01&quot;
+## [41] &quot;2015-05-01&quot; &quot;2015-06-01&quot; &quot;2015-07-01&quot; &quot;2015-08-01&quot; &quot;2015-09-01&quot;
+## [46] &quot;2015-10-01&quot; &quot;2015-11-01&quot; &quot;2015-12-01&quot; &quot;2016-01-01&quot; &quot;2016-02-01&quot;
+## [51] &quot;2016-03-01&quot; &quot;2016-04-01&quot; &quot;2016-05-01&quot; &quot;2016-06-01&quot; &quot;2016-07-01&quot;
+## [56] &quot;2016-08-01&quot; &quot;2016-09-01&quot; &quot;2016-10-01&quot; &quot;2016-11-01&quot; &quot;2016-12-01&quot;
+## [61] &quot;2017-01-01&quot; &quot;2017-02-01&quot; &quot;2017-03-01&quot; NA</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">##we&#39;ll also want the number of the month
+clean_usage[<span class="st">&quot;month_num&quot;</span>] &lt;-<span class="st"> </span><span class="kw">month</span>(clean_usage$Month)</code></pre></div>
+</div>
+<div class="slide section level2">
+
+<p>Examine the set for missing values</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">comp_obs &lt;-<span class="st"> </span>clean_usage[<span class="kw">complete.cases</span>(raw_usage), ]
+<span class="kw">nrow</span>(comp_obs)</code></pre></div>
+<pre><code>## [1] 30</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#Which months are included in our analysis?</span>
+comp_obs$Month</code></pre></div>
+<pre><code>##  [1] &quot;2014-07-01&quot; &quot;2014-08-01&quot; &quot;2014-09-01&quot; &quot;2014-10-01&quot; &quot;2014-11-01&quot;
+##  [6] &quot;2014-12-01&quot; &quot;2015-01-01&quot; &quot;2015-02-01&quot; &quot;2015-03-01&quot; &quot;2015-04-01&quot;
+## [11] &quot;2015-05-01&quot; &quot;2015-06-01&quot; &quot;2015-07-01&quot; &quot;2015-08-01&quot; &quot;2015-09-01&quot;
+## [16] &quot;2015-10-01&quot; &quot;2015-11-01&quot; &quot;2015-12-01&quot; &quot;2016-01-01&quot; &quot;2016-02-01&quot;
+## [21] &quot;2016-03-01&quot; &quot;2016-04-01&quot; &quot;2016-05-01&quot; &quot;2016-06-01&quot; &quot;2016-07-01&quot;
+## [26] &quot;2016-08-01&quot; &quot;2016-09-01&quot; &quot;2016-10-01&quot; &quot;2016-11-01&quot; &quot;2016-12-01&quot;</code></pre>
+</div>
+<div class="slide section level2">
+
+<p>Start to look at variables of interest</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">qplot</span>(comp_obs$Month,comp_obs$off_campus_all_sites_pageviews, <span class="dt">main=</span><span class="st">&quot;All campus website hits from off campus by month&quot;</span>, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Hit count - all university sites&quot;</span>) +<span class="st"> </span><span class="kw">geom_line</span>()</code></pre></div>
+<div class="figure">
+<img src="figure/firstplot-1.png" alt="plot of chunk firstplot" />
+<p class="caption">plot of chunk firstplot</p>
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">qplot</span>(comp_obs$Month,comp_obs$on_campus_all_sites_users,  <span class="dt">main=</span><span class="st">&quot;All campus website users from on campus by month&quot;</span>, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;User count - all university sites&quot;</span>) +<span class="st"> </span><span class="kw">geom_line</span>()</code></pre></div>
+<div class="figure">
+<img src="figure/firstplot-2.png" alt="plot of chunk firstplot" />
+<p class="caption">plot of chunk firstplot</p>
+</div>
+<ul>
+<li>A quick look at these two plots shows that July of 2014 had both the most users and the fewest hits. Something is off. Given that this was the first month of collection, data errors are likely, so it will be safest to discard the July 2014 data.</li>
+</ul>
+</div>
+<div class="slide section level2">
+
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#get a subset of observations with month greater than 2014-07</span>
+comp_obs2 &lt;-<span class="st"> </span><span class="kw">subset</span>(comp_obs, comp_obs$Month &gt;<span class="st"> &#39;2014-07-01&#39;</span>)
+comp_obs2$Month</code></pre></div>
+<pre><code>##  [1] &quot;2014-08-01&quot; &quot;2014-09-01&quot; &quot;2014-10-01&quot; &quot;2014-11-01&quot; &quot;2014-12-01&quot;
+##  [6] &quot;2015-01-01&quot; &quot;2015-02-01&quot; &quot;2015-03-01&quot; &quot;2015-04-01&quot; &quot;2015-05-01&quot;
+## [11] &quot;2015-06-01&quot; &quot;2015-07-01&quot; &quot;2015-08-01&quot; &quot;2015-09-01&quot; &quot;2015-10-01&quot;
+## [16] &quot;2015-11-01&quot; &quot;2015-12-01&quot; &quot;2016-01-01&quot; &quot;2016-02-01&quot; &quot;2016-03-01&quot;
+## [21] &quot;2016-04-01&quot; &quot;2016-05-01&quot; &quot;2016-06-01&quot; &quot;2016-07-01&quot; &quot;2016-08-01&quot;
+## [26] &quot;2016-09-01&quot; &quot;2016-10-01&quot; &quot;2016-11-01&quot; &quot;2016-12-01&quot;</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#in case we want to do more cleaning steps, we&#39;ll just use cur_data as the name of the most recent data in the cleaning process</span>
+cur_data &lt;-<span class="st"> </span>comp_obs2
+cur_df &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(cur_data[,-<span class="dv">1</span>])
+<span class="co">#we&#39;ll want to access the variable names</span>
+header &lt;-<span class="st"> </span><span class="kw">colnames</span>(cur_df)</code></pre></div>
+</div>
+<div class="slide section level2">
+
+<ul>
+<li>We may want to label our time periods as t = 1,2...n instead of as months, so we can add a variable with:</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">cur_data[<span class="st">&quot;period&quot;</span>] &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="kw">seq</span>(<span class="dt">from =</span> <span class="dv">1</span>, <span class="dt">to =</span> <span class="kw">nrow</span>(cur_data), <span class="dt">by =</span> <span class="dv">1</span>))
+<span class="kw">print</span>(cur_data$Month[cur_data$period ==<span class="st"> </span><span class="dv">12</span>])</code></pre></div>
+<pre><code>## [1] &quot;2015-07-01&quot;</code></pre>
+<h3 id="data-exploration">Data Exploration</h3>
+<h4 id="test-of-normality">Test of Normality</h4>
+<ul>
+<li>Our later tests assume a normal distribution, so let's take a look at the distributions of variables</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">for (i in <span class="dv">2</span>:<span class="kw">length</span>(cur_data))
+{
+  swtest &lt;-<span class="st"> </span><span class="kw">shapiro.test</span>((cur_data[,i]))
+  pval &lt;-<span class="st"> </span>swtest$p.value
+  if(pval &lt;<span class="st"> </span><span class="fl">0.05</span>)
+  {
+    <span class="kw">print</span>(header[i])
+    <span class="kw">print</span>(<span class="kw">shapiro.test</span>(cur_data[,i]))
+  }
+  
+}</code></pre></div>
+<pre><code>## [1] &quot;off_campus_all_sites_users&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.87882, p-value = 0.003163
+## 
+## [1] &quot;on_campus_all_sites_pageviews&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.87597, p-value = 0.002732
+## 
+## [1] &quot;on_campus_all_sites_sessions&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.91295, p-value = 0.02028
+## 
+## [1] &quot;on_campus_all_sites_users&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.91023, p-value = 0.01737
+## 
+## [1] &quot;libraries_site_pageviews&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.92745, p-value = 0.04728
+## 
+## [1] &quot;summon_sessions&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.92177, p-value = 0.03382
+## 
+## [1] &quot;summon_users&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.86521, p-value = 0.001588
+## 
+## [1] &quot;JR1_retrievals&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.91301, p-value = 0.02036
+## 
+## [1] &quot;DB1_result_clicks&quot;
+## 
+##  Shapiro-Wilk normality test
+## 
+## data:  cur_data[, i]
+## W = 0.81417, p-value = 0.0001516</code></pre>
+</div>
+<div class="slide section level2">
+
+<h4 id="looking-for-relationships-between-variables">Looking for relationships between variables</h4>
+<ul>
+<li>We'll first look for relationships between pairs of variables to determine if any relationships exist that warrant further investigation</li>
+<li>Covariance is a measure of how much two variables vary in relation to each other. They can have a positive relationship (a rise in temperature coincides with a rise in ice cream sales) or a negative relationship (a rise in temperature coincides with a drop in coat sales)</li>
+<li>Covariance does not allow us to compare apples and apples. For that, we need to scale the covariance so that we can measure the relative strength of the relationship. For this, we'll use Pearson's Correlation Coefficient, which will give us a result between -1 and 1, -1 indicating a strong negative relationship, 0 no relationship, and 1 a strong positive relationship.</li>
+<li>We'll want to identify the variables that concern us most
+<ul>
+<li>Article Downloads (JR1_retrievals)</li>
+<li>Discovery sessions and users (summon_sessions, summon_users)</li>
+<li>Users and sessions on the library website (library_site_sessions, library_site_users)</li>
+</ul></li>
+<li>A function to run through all variables and find the most significant correlations</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#adapted from https://stackoverflow.com/questions/21604997/how-to-find-significant-correlations-in-a-large-dataset</span>
+
+<span class="kw">corrgram</span>(cur_df)</code></pre></div>
+<div class="figure">
+<img src="figure/corr1-1.png" alt="plot of chunk corr1" />
+<p class="caption">plot of chunk corr1</p>
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#what are the correlations with a P value under 0.05?</span>
+get.correlations &lt;-<span class="st"> </span>function(cur_df)
+{
+  correlations &lt;-<span class="st"> </span><span class="kw">rcorr</span>(<span class="kw">as.matrix</span>(cur_df))
+  for (i in <span class="dv">1</span>:<span class="kw">length</span>(cur_df))
+  {
+    for (j in <span class="dv">1</span>:<span class="kw">length</span>(cur_df))
+    {
+      if (!<span class="kw">is.na</span>(correlations$P[i,j]))
+      {
+        <span class="co">#if the p-value is less than 0.05</span>
+        if(correlations$P[i,j] &lt;<span class="st"> </span><span class="fl">0.05</span>)
+        {
+          <span class="co">#Define thresholds for what constitutes a &quot;strong&quot; correlation</span>
+          positive.rel &lt;-<span class="st"> </span><span class="fl">0.8</span>
+          negative.rel &lt;-<span class="st"> </span>-<span class="fl">0.8</span>
+          <span class="co">#if the relationship passes our strength test</span>
+           if((correlations$r[i,j] &gt;<span class="st"> </span>positive.rel) ||<span class="st"> </span>(correlations$r[i,j] &lt;<span class="st"> </span>negative.rel))
+          {
+            <span class="kw">print</span>(<span class="kw">paste</span>(<span class="kw">rownames</span>(correlations$P)[i], <span class="st">&quot;-&quot;</span> , <span class="kw">colnames</span>(correlations$P)[j], <span class="st">&quot;: &quot;</span>, correlations$r[i,j]))
+            
+          }
+
+        }
+      }
+    }
+  }
+  <span class="kw">return</span>(correlations)
+}
+
+my.cor &lt;-<span class="st"> </span><span class="kw">get.correlations</span>(cur_df)</code></pre></div>
+<pre><code>## [1] &quot;off_campus_all_sites_pageviews - off_campus_all_sites_users :  0.802825570106506&quot;
+## [1] &quot;off_campus_all_sites_sessions - on_campus_all_sites_pageviews :  0.83315509557724&quot;
+## [1] &quot;off_campus_all_sites_users - off_campus_all_sites_pageviews :  0.802825570106506&quot;
+## [1] &quot;on_campus_all_sites_pageviews - off_campus_all_sites_sessions :  0.83315509557724&quot;
+## [1] &quot;on_campus_all_sites_pageviews - on_campus_all_sites_sessions :  0.960258185863495&quot;
+## [1] &quot;on_campus_all_sites_pageviews - on_campus_all_sites_users :  0.980291903018951&quot;
+## [1] &quot;on_campus_all_sites_pageviews - libraries_site_sessions :  0.817626476287842&quot;
+## [1] &quot;on_campus_all_sites_pageviews - catalog_pageviews :  0.882542729377747&quot;
+## [1] &quot;on_campus_all_sites_pageviews - catalog_sessions :  0.93052738904953&quot;
+## [1] &quot;on_campus_all_sites_pageviews - catalog_users :  0.888962030410767&quot;
+## [1] &quot;on_campus_all_sites_pageviews - summon_sessions :  0.802591621875763&quot;
+## [1] &quot;on_campus_all_sites_pageviews - summon_users :  0.891677916049957&quot;
+## [1] &quot;on_campus_all_sites_sessions - on_campus_all_sites_pageviews :  0.960258185863495&quot;
+## [1] &quot;on_campus_all_sites_sessions - on_campus_all_sites_users :  0.964977741241455&quot;
+## [1] &quot;on_campus_all_sites_sessions - libraries_site_sessions :  0.856795430183411&quot;
+## [1] &quot;on_campus_all_sites_sessions - catalog_sessions :  0.838036715984344&quot;
+## [1] &quot;on_campus_all_sites_sessions - summon_sessions :  0.900032937526703&quot;
+## [1] &quot;on_campus_all_sites_sessions - summon_users :  0.944520235061646&quot;
+## [1] &quot;on_campus_all_sites_sessions - DB1_result_clicks :  0.80340051651001&quot;
+## [1] &quot;on_campus_all_sites_users - on_campus_all_sites_pageviews :  0.980291903018951&quot;
+## [1] &quot;on_campus_all_sites_users - on_campus_all_sites_sessions :  0.964977741241455&quot;
+## [1] &quot;on_campus_all_sites_users - libraries_site_sessions :  0.824459075927734&quot;
+## [1] &quot;on_campus_all_sites_users - catalog_pageviews :  0.847058236598969&quot;
+## [1] &quot;on_campus_all_sites_users - catalog_sessions :  0.900045275688171&quot;
+## [1] &quot;on_campus_all_sites_users - catalog_users :  0.868770956993103&quot;
+## [1] &quot;on_campus_all_sites_users - summon_sessions :  0.825373888015747&quot;
+## [1] &quot;on_campus_all_sites_users - summon_users :  0.904647767543793&quot;
+## [1] &quot;libraries_site_sessions - on_campus_all_sites_pageviews :  0.817626476287842&quot;
+## [1] &quot;libraries_site_sessions - on_campus_all_sites_sessions :  0.856795430183411&quot;
+## [1] &quot;libraries_site_sessions - on_campus_all_sites_users :  0.824459075927734&quot;
+## [1] &quot;libraries_site_sessions - libraries_site_users :  0.966796696186066&quot;
+## [1] &quot;libraries_site_sessions - summon_sessions :  0.834935367107391&quot;
+## [1] &quot;libraries_site_sessions - summon_users :  0.87566751241684&quot;
+## [1] &quot;libraries_site_sessions - DB1_result_clicks :  0.803117275238037&quot;
+## [1] &quot;libraries_site_users - libraries_site_sessions :  0.966796696186066&quot;
+## [1] &quot;catalog_pageviews - on_campus_all_sites_pageviews :  0.882542729377747&quot;
+## [1] &quot;catalog_pageviews - on_campus_all_sites_users :  0.847058236598969&quot;
+## [1] &quot;catalog_pageviews - catalog_sessions :  0.978694677352905&quot;
+## [1] &quot;catalog_pageviews - catalog_users :  0.973966360092163&quot;
+## [1] &quot;catalog_sessions - on_campus_all_sites_pageviews :  0.93052738904953&quot;
+## [1] &quot;catalog_sessions - on_campus_all_sites_sessions :  0.838036715984344&quot;
+## [1] &quot;catalog_sessions - on_campus_all_sites_users :  0.900045275688171&quot;
+## [1] &quot;catalog_sessions - catalog_pageviews :  0.978694677352905&quot;
+## [1] &quot;catalog_sessions - catalog_users :  0.983946621417999&quot;
+## [1] &quot;catalog_users - on_campus_all_sites_pageviews :  0.888962030410767&quot;
+## [1] &quot;catalog_users - on_campus_all_sites_users :  0.868770956993103&quot;
+## [1] &quot;catalog_users - catalog_pageviews :  0.973966360092163&quot;
+## [1] &quot;catalog_users - catalog_sessions :  0.983946621417999&quot;
+## [1] &quot;summon_pageviews - summon_users :  0.800552785396576&quot;
+## [1] &quot;summon_pageviews - JR1_retrievals :  0.817062854766846&quot;
+## [1] &quot;summon_sessions - on_campus_all_sites_pageviews :  0.802591621875763&quot;
+## [1] &quot;summon_sessions - on_campus_all_sites_sessions :  0.900032937526703&quot;
+## [1] &quot;summon_sessions - on_campus_all_sites_users :  0.825373888015747&quot;
+## [1] &quot;summon_sessions - libraries_site_sessions :  0.834935367107391&quot;
+## [1] &quot;summon_sessions - summon_users :  0.975864470005035&quot;
+## [1] &quot;summon_sessions - DB1_result_clicks :  0.918987274169922&quot;
+## [1] &quot;summon_users - on_campus_all_sites_pageviews :  0.891677916049957&quot;
+## [1] &quot;summon_users - on_campus_all_sites_sessions :  0.944520235061646&quot;
+## [1] &quot;summon_users - on_campus_all_sites_users :  0.904647767543793&quot;
+## [1] &quot;summon_users - libraries_site_sessions :  0.87566751241684&quot;
+## [1] &quot;summon_users - summon_pageviews :  0.800552785396576&quot;
+## [1] &quot;summon_users - summon_sessions :  0.975864470005035&quot;
+## [1] &quot;summon_users - DB1_result_clicks :  0.897328317165375&quot;
+## [1] &quot;JR1_retrievals - summon_pageviews :  0.817062854766846&quot;
+## [1] &quot;JR1_retrievals - DB1_result_clicks :  0.805746912956238&quot;
+## [1] &quot;DB1_result_clicks - on_campus_all_sites_sessions :  0.80340051651001&quot;
+## [1] &quot;DB1_result_clicks - libraries_site_sessions :  0.803117275238037&quot;
+## [1] &quot;DB1_result_clicks - summon_sessions :  0.918987274169922&quot;
+## [1] &quot;DB1_result_clicks - summon_users :  0.897328317165375&quot;
+## [1] &quot;DB1_result_clicks - JR1_retrievals :  0.805746912956238&quot;</code></pre>
+</div>
+<div class="slide section level2">
+
+<h4 id="looking-at-relationships-of-interest">Looking at relationships of interest</h4>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#We can view individual correlations of interest with </span>
+<span class="kw">cor</span>(cur_df$catalog_users, cur_df$summon_users)</code></pre></div>
+<pre><code>## [1] 0.7450736</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">cor</span>(cur_df$catalog_pageviews, cur_data$JR1_retrievals)</code></pre></div>
+<pre><code>## [1] 0.3562041</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">cor</span>(cur_data$summon_sessions, cur_data$JR1_retrievals)</code></pre></div>
+<pre><code>## [1] 0.7458323</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">cor</span>(cur_data$libraries_site_sessions, cur_data$summon_sessions)</code></pre></div>
+<pre><code>## [1] 0.8349354</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#We want to know how various factors impact the number of sessions in the discovery layer</span>
+<span class="kw">qplot</span>(cur_data$Month,cur_data$summon_sessions, 
+      <span class="dt">main=</span><span class="st">&quot;Summon Sessions and Library Site Sessions&quot;</span>, 
+      <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, 
+      <span class="dt">ylab=</span><span class="st">&quot;Summon session count&quot;</span>,
+      <span class="dt">col=</span><span class="st">&quot;Summon Sessions&quot;</span>) +<span class="st"> </span>
+<span class="st">      </span><span class="kw">geom_line</span>(<span class="dt">col =</span> <span class="st">&quot;blue&quot;</span>) +<span class="st"> </span>
+<span class="st">      </span><span class="kw">geom_line</span>(<span class="kw">aes</span>(<span class="dt">y =</span> cur_data$libraries_site_sessions, <span class="dt">col=</span><span class="st">&quot;Library Site Sessions&quot;</span>, <span class="dt">name=</span><span class="st">&quot;All libraries site sessions&quot;</span>, <span class="dt">labels=</span><span class="kw">c</span>(<span class="st">&quot;Library Site Sessions&quot;</span>)))</code></pre></div>
+<div class="figure">
+<img src="figure/relationship_isolation-1.png" alt="plot of chunk relationship_isolation" />
+<p class="caption">plot of chunk relationship_isolation</p>
+</div>
+</div>
+<div id="back-to-stage-3" class="slide section level2">
+<h2>Back to Stage 3</h2>
+<h3 id="always-be-willing-to-return-to-a-previous-stage-and-start-again">Always be willing to return to a previous stage and start again</h3>
+<ul>
+<li>We initially discarded pre-2014 data because some variables were incomplete. If our variables of interest had more observations, we'll want to use those</li>
+</ul>
+</div>
+<div id="crisp-dm-stage-3-data-preparation-1" class="slide section level2">
+<h2>CRISP-DM Stage 3: Data Preparation</h2>
+<h3 id="cleaning-1">Cleaning</h3>
+<h3 id="subset-of-the-data-since-our-variables-of-interest-have-more-observations-lets-focus-on-those-for-now">Subset of the data: since our variables of interest have more observations, let's focus on those for now</h3>
+<p>We want to get one subset of variables that go back to 2013</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">comp_obs3 &lt;-<span class="st"> </span><span class="kw">select</span>(clean_usage, Month, libraries_site_pageviews, libraries_site_sessions, libraries_site_users, summon_pageviews, summon_sessions, summon_users)
+comp_obs4 &lt;-<span class="st"> </span>comp_obs3[<span class="kw">complete.cases</span>(comp_obs3), ]
+
+<span class="co">#give each observation a period number</span>
+
+comp_obs4[<span class="st">&quot;period&quot;</span>] &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">1</span>:<span class="kw">nrow</span>(comp_obs4))
+<span class="co">#if data is final subset, assign to cur_data</span>
+cur_data &lt;-<span class="st"> </span>comp_obs4</code></pre></div>
+</div>
+<div class="slide section level2">
+
+<ol start="3" style="list-style-type: decimal">
+<li>Take a look at the data</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">qplot</span>(cur_data$period, cur_data$libraries_site_pageviews, <span class="dt">main=</span><span class="st">&quot;Library website hits by month&quot;</span>, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Hit count - Library sites&quot;</span>) +<span class="st"> </span><span class="kw">geom_line</span>()</code></pre></div>
+<div class="figure">
+<img src="figure/secondplot-1.png" alt="plot of chunk secondplot" />
+<p class="caption">plot of chunk secondplot</p>
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">qplot</span>(cur_data$period, cur_data$libraries_site_users,  <span class="dt">main=</span><span class="st">&quot;Library website users from on campus by month&quot;</span>, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;User count - library sites&quot;</span>) +<span class="st"> </span><span class="kw">geom_line</span>()</code></pre></div>
+<div class="figure">
+<img src="figure/secondplot-2.png" alt="plot of chunk secondplot" />
+<p class="caption">plot of chunk secondplot</p>
+</div>
+</div>
+<div class="slide section level2">
+
+<ul>
+<li>Clearly something was wrong with stats collection in Summer 2014, so let's remove those</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">err_remove &lt;-<span class="st"> </span>cur_data[-<span class="kw">c</span>(<span class="dv">28</span>,<span class="dv">29</span>,<span class="dv">30</span>,<span class="dv">31</span>), ]
+cur_data &lt;-<span class="st"> </span>err_remove
+<span class="kw">qplot</span>(cur_data$period, cur_data$libraries_site_pageviews, <span class="dt">main=</span><span class="st">&quot;Library website hits and users by period&quot;</span>, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Hit count - Library sites&quot;</span>) +<span class="st"> </span><span class="kw">geom_line</span>() +
+<span class="kw">geom_line</span>(<span class="kw">aes</span>(<span class="dt">y =</span> cur_data$libraries_site_sessions, <span class="dt">col=</span><span class="st">&quot;Libraries Site Sessions&quot;</span>, <span class="dt">title=</span><span class="st">&quot;All libraries site sessions&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="figure/error_remove-1.png" alt="plot of chunk error_remove" />
+<p class="caption">plot of chunk error_remove</p>
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">qplot</span>(cur_data$period, cur_data$libraries_site_sessions, <span class="dt">main=</span><span class="st">&quot;Library website and Summon sessions by month&quot;</span>, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Hit count - Library sites&quot;</span>, <span class="dt">col=</span><span class="st">&quot;Library Site Sessions&quot;</span>) +<span class="st"> </span><span class="kw">geom_line</span>() +
+<span class="kw">geom_line</span>(<span class="kw">aes</span>(<span class="dt">y =</span> cur_data$summon_sessions, <span class="dt">col=</span><span class="st">&quot;Summon Sessions&quot;</span>, <span class="dt">title=</span><span class="st">&quot;All libraries site sessions&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="figure/error_remove-2.png" alt="plot of chunk error_remove" />
+<p class="caption">plot of chunk error_remove</p>
+</div>
+</div>
+<div id="crisp-dm-stage-4-modeling" class="slide section level2">
+<h2>CRISP-DM Stage 4: Modeling</h2>
+<h4 id="regression">Regression</h4>
+<p>Regression can be used to estimate a trend - a gradual shift - over time <span class="math inline"><em>β</em><sub>0</sub> + <em>β</em><sub>1</sub> + <em>ϵ</em></span></p>
+<ul>
+<li>Some assumptions of regression:</li>
+</ul>
+<ol style="list-style-type: decimal">
+<li>Linear relationship between dependent and independent variable</li>
+<li>No correlation between any variables and the error</li>
+<li>Constant variance of errors</li>
+<li>Error distribution is normal</li>
+</ol>
+<ul>
+<li>A basic linear regression</li>
+<li>We want to predict the number of sessions (the response or dependent variable) given a month (the explanatory or independent variable)</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">basic_reg_smn &lt;-<span class="st"> </span><span class="kw">lm</span>(summon_sessions~period, <span class="dt">data=</span>cur_data)
+basic_reg_smn</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = summon_sessions ~ period, data = cur_data)
+## 
+## Coefficients:
+## (Intercept)       period  
+##     25192.6         39.2</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">basic_reg_libses &lt;-<span class="st"> </span><span class="kw">lm</span>(libraries_site_sessions~period, <span class="dt">data=</span>cur_data)
+basic_reg_libses</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = libraries_site_sessions ~ period, data = cur_data)
+## 
+## Coefficients:
+## (Intercept)       period  
+##      207358        -2574</code></pre>
+</div>
+<div class="slide section level2">
+
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot</span>(cur_data$summon_sessions~cur_data$period, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Summon Sessions&quot;</span>)
+<span class="kw">abline</span>(basic_reg_smn)</code></pre></div>
+<div class="figure">
+<img src="figure/reg_plot1-1.png" alt="plot of chunk reg_plot1" />
+<p class="caption">plot of chunk reg_plot1</p>
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot</span>(cur_data$libraries_site_sessions~cur_data$period, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Library Site Sessions&quot;</span>)
+<span class="kw">abline</span>(basic_reg_libses)</code></pre></div>
+<div class="figure">
+<img src="figure/reg_plot1-2.png" alt="plot of chunk reg_plot1" />
+<p class="caption">plot of chunk reg_plot1</p>
+</div>
+<ul>
+<li>We see two clear trends, but are the models accurate?</li>
+</ul>
+</div>
+<div id="crisp-dm-stage-5-evaluation" class="slide section level2">
+<h2>CRISP-DM Stage 5: Evaluation</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(basic_reg_smn)</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = summon_sessions ~ period, data = cur_data)
+## 
+## Residuals:
+##    Min     1Q Median     3Q    Max 
+## -13244  -8769   2508   6760  13719 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept) 25192.59    2134.90  11.800   &lt;2e-16 ***
+## period         39.20      58.26   0.673    0.504    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 8204 on 56 degrees of freedom
+## Multiple R-squared:  0.00802,    Adjusted R-squared:  -0.009694 
+## F-statistic: 0.4527 on 1 and 56 DF,  p-value: 0.5038</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(basic_reg_libses)</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = libraries_site_sessions ~ period, data = cur_data)
+## 
+## Residuals:
+##    Min     1Q Median     3Q    Max 
+## -62545 -22734  -2733  32984  65989 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept) 207357.9     9279.3   22.35  &lt; 2e-16 ***
+## period       -2574.4      253.2  -10.17  2.5e-14 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 35660 on 56 degrees of freedom
+## Multiple R-squared:  0.6486, Adjusted R-squared:  0.6423 
+## F-statistic: 103.4 on 1 and 56 DF,  p-value: 2.503e-14</code></pre>
+<ul>
+<li>The model for Summon sessions is nowhere near our desired level of accuracy.</li>
+<li>The model for Library Website Sessions is very promising</li>
+</ul>
+</div>
+<div id="back-to-crisp-dm-stage-4-modeling" class="slide section level2">
+<h2>Back to CRISP-DM Stage 4: Modeling</h2>
+<h3 id="additive-decomposition-model">Additive decomposition model</h3>
+<ul>
+<li>Essentially means we're adding or subtracting values to reduce the impact of seasons</li>
+<li>Looking for a linear trend</li>
+<li>For monthly data, there are 12 seasonal time periods, so we will need 12-1 dummy variables</li>
+<li>d_Mon1 = 1 if Month is January, 0 otherwise</li>
+<li>d_Mon2 = 1 if Month is February, 0 otherwise...</li>
+<li>We'll omit December because we need to avoid multiple collinearity, so the number of periods is always n-1</li>
+<li><p>Model is <span class="math inline"><em>β</em><sub>0</sub> + <em>β</em><sub>1</sub>(<em>d</em>_<em>M</em><em>o</em><em>n</em>1)+<em>β</em><sub>2</sub>(<em>d</em>_<em>M</em><em>o</em><em>n</em>2)+...<em>β</em><sub>12</sub>(<em>t</em>)+<em>ϵ</em></span></p></li>
+<li><p>So when we want to know what value to expect in January, our model is: E(y | t, Month=1) = <span class="math inline"><em>β</em><sub>0</sub> + <em>β</em><sub>1</sub>(1)+<em>β</em><sub>2</sub>(0)+...<em>β</em><sub>12</sub></span> (t)</p></li>
+<li><p><span class="math inline"><em>β</em><sub>12</sub></span> (t) is the same for every month we look at. This gives us the slope of the trend line</p></li>
+<li><p>The model for the 12th month (or whatever our n-1 is) is: <span class="math inline"><em>β</em><sub>0</sub> + <em>β</em><sub>12</sub></span> (t)</p></li>
+</ul>
+</div>
+<div class="slide section level2">
+
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#we want the month numbers as a factor so they can be used as cateogircal variables</span>
+cur_data$d_Mon &lt;-<span class="st"> </span><span class="kw">as.factor</span>(<span class="kw">month</span>(cur_data$Month) %%<span class="st"> </span><span class="dv">12</span>)
+seasonal.model &lt;-<span class="st"> </span><span class="kw">lm</span>(libraries_site_sessions~d_Mon, <span class="dt">data=</span>cur_data)
+seasonal.model2 &lt;-<span class="st"> </span><span class="kw">lm</span>(summon_sessions~d_Mon, <span class="dt">data=</span>cur_data)</code></pre></div>
+</div>
+<div id="crisp-dm-stage-5-evaluation-1" class="slide section level2">
+<h2>CRISP-DM Stage 5: Evaluation</h2>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(seasonal.model)</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = libraries_site_sessions ~ d_Mon, data = cur_data)
+## 
+## Residuals:
+##    Min     1Q Median     3Q    Max 
+## -89154 -37610 -21278  42056 125621 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)   
+## (Intercept)    81830      26484   3.090  0.00339 **
+## d_Mon1         36767      37454   0.982  0.33140   
+## d_Mon2         66974      35859   1.868  0.06818 . 
+## d_Mon3         48753      35859   1.360  0.18059   
+## d_Mon4         71988      37454   1.922  0.06080 . 
+## d_Mon5         38540      39726   0.970  0.33704   
+## d_Mon6          7585      39726   0.191  0.84942   
+## d_Mon7          7641      39726   0.192  0.84832   
+## d_Mon8         23682      39726   0.596  0.55401   
+## d_Mon9         77985      37454   2.082  0.04292 * 
+## d_Mon10        78743      37454   2.102  0.04102 * 
+## d_Mon11        45018      37454   1.202  0.23552   
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 59220 on 46 degrees of freedom
+## Multiple R-squared:  0.204,  Adjusted R-squared:  0.01363 
+## F-statistic: 1.072 on 11 and 46 DF,  p-value: 0.404</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">summary</span>(seasonal.model2)</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = summon_sessions ~ d_Mon, data = cur_data)
+## 
+## Residuals:
+##    Min     1Q Median     3Q    Max 
+## -10262  -2027      2   1804  15320 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  16646.2     1813.6   9.179 5.78e-12 ***
+## d_Mon1        8520.6     2564.8   3.322  0.00176 ** 
+## d_Mon2       15764.1     2455.6   6.420 6.78e-08 ***
+## d_Mon3       10889.5     2455.6   4.435 5.70e-05 ***
+## d_Mon4       14154.8     2564.8   5.519 1.51e-06 ***
+## d_Mon5        4062.6     2720.4   1.493  0.14216    
+## d_Mon6         855.1     2720.4   0.314  0.75470    
+## d_Mon7        1440.3     2720.4   0.529  0.59904    
+## d_Mon8        -628.9     2720.4  -0.231  0.81818    
+## d_Mon9       16875.4     2564.8   6.580 3.90e-08 ***
+## d_Mon10      20451.4     2564.8   7.974 3.23e-10 ***
+## d_Mon11      16954.6     2564.8   6.611 3.50e-08 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 4055 on 46 degrees of freedom
+## Multiple R-squared:  0.8009, Adjusted R-squared:  0.7533 
+## F-statistic: 16.82 on 11 and 46 DF,  p-value: 1.234e-12</code></pre>
+<ul>
+<li><p>The attempt to reduce the seasonal effect has made the library site sessions model worse.</p></li>
+<li><p>The first regression on Summon sessions did not yield a useful model, but this model looks promising.</p></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#actual Summon sessions for January and February 2017: 26600, 34370</span>
+new_data &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">d_Mon =</span> <span class="st">&quot;1&quot;</span>)
+pred_basic_reg_smn_jan &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model2, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)
+new_data &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">d_Mon =</span> <span class="st">&quot;2&quot;</span>)
+pred_basic_reg_smn_feb &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model2, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)</code></pre></div>
+<ul>
+<li>Seasonal Model 2 for Summon sessions seems to be working.</li>
+</ul>
+<ul>
+<li>The same thing done manually</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#create a new variable for each month</span>
+dummy.vars &lt;-<span class="st"> </span>function(col,i){
+  new_val &lt;-<span class="st"> </span>col
+  for (j in col){
+    if (col[j] %%<span class="st"> </span><span class="dv">12</span> ==<span class="st"> </span>i){
+      new_val[j] =<span class="st"> </span><span class="dv">1</span>
+    }  
+    else
+    {
+      new_val[j] =<span class="st"> </span><span class="dv">0</span>
+    }
+  } 
+  <span class="kw">return</span>(new_val)
+}
+
+for (m in <span class="dv">1</span>:<span class="dv">11</span>){
+  new_var &lt;-<span class="st"> </span><span class="kw">paste</span>(<span class="st">&quot;d_Mon&quot;</span>, m, <span class="dt">sep=</span> <span class="st">&quot;&quot;</span>)
+  dum_var &lt;-<span class="st"> </span><span class="kw">dummy.vars</span>(<span class="kw">month</span>(cur_data$Month), m)
+  cur_data[<span class="kw">paste</span>(<span class="st">&quot;d_Mon&quot;</span>, m, <span class="dt">sep=</span><span class="st">&quot;&quot;</span>)] &lt;-<span class="st"> </span>dum_var
+}
+<span class="co">#head(cur_data)</span>
+
+<span class="co"># remember that period 1 corresponds to August...period 0 to July</span>
+<span class="co"># turn the periods into categorical variables with each number representing a level</span>
+cur_data$d_Mon &lt;-<span class="st"> </span><span class="kw">as.factor</span>(<span class="kw">month</span>(cur_data$Month) %%<span class="st"> </span><span class="dv">12</span>)
+seasonal.model &lt;-<span class="st"> </span><span class="kw">lm</span>(libraries_site_sessions~Month+d_Mon1+d_Mon2+d_Mon3+d_Mon4+d_Mon5+d_Mon6+d_Mon7+d_Mon8+d_Mon9+d_Mon10+d_Mon11, <span class="dt">data=</span>cur_data)
+<span class="kw">summary</span>(seasonal.model)</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = libraries_site_sessions ~ Month + d_Mon1 + d_Mon2 + 
+##     d_Mon3 + d_Mon4 + d_Mon5 + d_Mon6 + d_Mon7 + d_Mon8 + d_Mon9 + 
+##     d_Mon10 + d_Mon11, data = cur_data)
+## 
+## Residuals:
+##    Min     1Q Median     3Q    Max 
+## -52650 -19013   3424  15377  64522 
+## 
+## Coefficients:
+##               Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.447e+06  1.359e+05  10.643 7.11e-14 ***
+## Month       -8.064e+01  8.493e+00  -9.495 2.57e-12 ***
+## d_Mon1       2.739e+04  3.081e+04   0.889   0.3788    
+## d_Mon2       2.659e+04  3.080e+04   0.864   0.3924    
+## d_Mon3      -7.894e+03  3.079e+04  -0.256   0.7988    
+## d_Mon4       3.848e+04  3.078e+04   1.250   0.2177    
+## d_Mon5       3.745e+04  3.078e+04   1.217   0.2300    
+## d_Mon6      -7.410e+04  3.077e+04  -2.408   0.0202 *  
+## d_Mon7      -7.188e+04  3.077e+04  -2.336   0.0240 *  
+## d_Mon8      -6.923e+04  3.077e+04  -2.250   0.0294 *  
+## d_Mon9       2.139e+04  3.078e+04   0.695   0.4906    
+## d_Mon10      4.892e+04  3.078e+04   1.589   0.1190    
+## d_Mon11      2.162e+04  3.079e+04   0.702   0.4863    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 32270 on 45 degrees of freedom
+## Multiple R-squared:  0.7687, Adjusted R-squared:  0.707 
+## F-statistic: 12.46 on 12 and 45 DF,  p-value: 1.26e-10</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">confint</span>(seasonal.model, <span class="dt">level=</span><span class="fl">0.95</span>)</code></pre></div>
+<pre><code>##                    2.5 %        97.5 %
+## (Intercept) 1173089.5939 1720688.98879
+## Month           -97.7445     -63.53285
+## d_Mon1       -34672.1430   89446.28473
+## d_Mon2       -35435.3252   88623.55581
+## d_Mon3       -69905.4485   54116.72212
+## d_Mon4       -23513.4121  100478.28349
+## d_Mon5       -24531.8219   99439.01366
+## d_Mon6      -136075.7074  -12117.50305
+## d_Mon7      -133852.7548   -9898.13523
+## d_Mon8      -131214.5677   -7254.72465
+## d_Mon9       -40594.9169   83379.22238
+## d_Mon10      -13082.9921  110913.61799
+## d_Mon11      -40398.2624   83630.48606</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#seasonal.model2 &lt;- lm(libraries_site_sessions~Month+d_Mon1+d_Mon2+d_Mon3+d_Mon4+d_Mon5+d_Mon6+d_Mon7+d_Mon8+d_Mon9+d_Mon10+d_Mon11, data=cur_data)</span></code></pre></div>
+</div>
+<div id="back-to-crisp-dm-stage-4-modeling-1" class="slide section level2">
+<h2>Back to CRISP-DM Stage 4: Modeling</h2>
+<h4 id="multiplicative-decomposition">Multiplicative Decomposition</h4>
+<ul>
+<li>Trend x Seasonal % change x error</li>
+<li>Can we isolate the seasonal effect (which would leave us with the trend)?</li>
+</ul>
+<ol style="list-style-type: decimal">
+<li>What is our seasonal period? Months: 12 periods</li>
+<li>Develop a moving average forecast for the number of periods</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#start with period 13</span>
+rolling.mean &lt;-<span class="st"> </span><span class="kw">rollmean</span>(cur_data$libraries_site_sessions, <span class="dv">12</span>, <span class="dt">na.pad =</span> <span class="ot">FALSE</span>)
+
+<span class="co">#manually</span>
+ma &lt;-<span class="st"> </span><span class="kw">seq</span>(<span class="dv">13</span>:<span class="dv">58</span>)
+for(i in <span class="dv">13</span>:(<span class="kw">nrow</span>(cur_data))){
+  last12 &lt;-<span class="st"> </span>cur_data$period[(i<span class="dv">-12</span>):(i<span class="dv">-1</span>)]
+  ma[i<span class="dv">-12</span>] &lt;-<span class="st"> </span><span class="kw">mean</span>(cur_data$libraries_site_sessions[last12]) 
+}</code></pre></div>
+<ol start="3" style="list-style-type: decimal">
+<li>Find the ratio to the moving average</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">cur_forecast &lt;-<span class="st"> </span>cur_data[<span class="dv">13</span>:<span class="kw">nrow</span>(cur_data),]
+cur_forecast[<span class="st">&quot;ratio&quot;</span>] &lt;-<span class="st"> </span>cur_forecast$libraries_site_sessions /<span class="st"> </span>ma</code></pre></div>
+<ol start="4" style="list-style-type: decimal">
+<li>Find the average ratio for each period</li>
+</ol>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#Unadjusted seasonal indexes</span>
+unadj_seas_ind &lt;-<span class="st"> </span><span class="kw">seq</span>(<span class="dv">1</span>:<span class="dv">12</span>)
+for (i in <span class="dv">1</span>:<span class="dv">12</span>){
+  unadj_seas_ind[i] &lt;-<span class="st"> </span><span class="kw">mean</span>(cur_forecast$ratio[(cur_forecast$period %%<span class="st"> </span><span class="dv">12</span> ==<span class="st"> </span>i)], <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)
+}
+<span class="co">#add ratio to [12]</span>
+unadj_seas_ind[<span class="dv">12</span>] &lt;-<span class="st"> </span><span class="kw">mean</span>(cur_forecast$ratio[(cur_forecast$period %%<span class="st"> </span><span class="dv">12</span> ==<span class="st"> </span><span class="dv">0</span>)], <span class="dt">na.rm=</span><span class="ot">TRUE</span>)
+unadj_seas_ind</code></pre></div>
+<pre><code>##  [1] 1.0101521 0.9964986 1.0031420 0.6319404 0.6317845 0.6333840 0.8592812
+##  [8] 1.2395524 1.2009590 0.9437721 0.5902131 0.8114107</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">grp_avg &lt;-<span class="st"> </span><span class="kw">mean</span>(unadj_seas_ind, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)</code></pre></div>
+<ul>
+<li>The mean of the unadjusted seasonal index reflects the trend. We don't want the trend included as we're trying to isolate the seasonal effect</li>
+</ul>
+<ol start="5" style="list-style-type: decimal">
+<li>Adjust ratios</li>
+</ol>
+<ul>
+<li>Divide each ratio by the average of the ratios - this sets the average index to 1</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">adjusted_ratios &lt;-<span class="st"> </span>unadj_seas_ind /<span class="st"> </span>grp_avg</code></pre></div>
+<ol start="6" style="list-style-type: decimal">
+<li>Adjust the time series</li>
+</ol>
+<ul>
+<li>For each observation, divide the observation by its adjusted seasonal index</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">ns_sessions &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="kw">seq</span>(<span class="dv">1</span>:<span class="kw">nrow</span>(cur_data)))
+for (i in <span class="dv">1</span>:<span class="kw">nrow</span>(cur_data)){
+  <span class="co">#multiply the observed value by its corresponding adjusted index</span>
+  if(i %%<span class="st"> </span><span class="dv">12</span> !=<span class="st"> </span><span class="dv">0</span>)
+  {
+    ns_sessions[i] &lt;-<span class="st"> </span>(cur_data$libraries_site_sessions[i] *<span class="st"> </span>adjusted_ratios[(i %%<span class="st"> </span><span class="dv">12</span>)]) 
+  }
+  else{
+    ns_sessions[i] &lt;-<span class="st"> </span>(cur_data$libraries_site_sessions[i] *<span class="st"> </span>adjusted_ratios[<span class="dv">12</span>])
+  }
+}
+
+<span class="co">#How much has the index changed our data?</span>
+cur_data$libraries_site_sessions -<span class="st"> </span>ns_sessions</code></pre></div>
+<pre><code>##  [1] -36057.938 -27387.777 -35118.170  69208.988  37144.680  36849.299
+##  [7]   3008.558 -90124.913 -89650.591 -15776.694  49284.246  16699.248
+## [13] -35684.697 -29572.009 -28893.202  33568.713  30450.299  31459.646
+## [19]   2933.598 -83524.413 -73874.003  -9619.405  28169.002   9439.485
+## [25] -19418.170 -16221.464 -16881.399  40606.905  38157.044  29095.291
+## [31]   1523.966 -38460.113 -37086.227  -7758.728  36636.932   4577.832
+## [37]  -9404.349  -8278.073 -11989.699  36660.161  34394.182  27907.940
+## [43]   1360.175 -33575.996 -35151.415  -6368.094  27322.341   4396.909
+## [49]  -8083.354  -6866.196 -10756.813  28284.723  27606.897  23451.944
+## [55]   1075.753 -32267.612 -30179.421  -3035.597</code></pre>
+</div>
+<div id="crisp-dm-stage-5-evaluation-2" class="slide section level2">
+<h2>CRISP-DM Stage 5: Evaluation</h2>
+<h3 id="build-a-model-with-seasonally-adjusted-data">Build a model with seasonally-adjusted data</h3>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#add adjusted values to the dataframe</span>
+cur_data[<span class="st">&quot;seas_sess&quot;</span>] &lt;-<span class="st"> </span>ns_sessions
+seasonal.model3 &lt;-<span class="st"> </span><span class="kw">lm</span>(seas_sess~period, <span class="dt">data=</span>cur_data)
+<span class="kw">summary</span>(seasonal.model3)</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = seas_sess ~ period, data = cur_data)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -108344  -30098   -4509   24182  142768 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept) 217067.1    15260.5  14.224  &lt; 2e-16 ***
+## period       -2785.5      416.4  -6.689 1.13e-08 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 58650 on 56 degrees of freedom
+## Multiple R-squared:  0.4441, Adjusted R-squared:  0.4342 
+## F-statistic: 44.74 on 1 and 56 DF,  p-value: 1.129e-08</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">confint</span>(seasonal.model3, <span class="dt">level=</span><span class="fl">0.95</span>)</code></pre></div>
+<pre><code>##                  2.5 %     97.5 %
+## (Intercept) 186496.635 247637.523
+## period       -3619.665  -1951.236</code></pre>
+<ul>
+<li><h2 id="big-difference.">Big difference.</h2></li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">plot</span>(cur_data$seas_sess~cur_data$period, <span class="dt">xlab=</span><span class="st">&quot;Month&quot;</span>, <span class="dt">ylab=</span><span class="st">&quot;Library Site Sessions - Seasonally adjusted&quot;</span>)
+<span class="kw">abline</span>(seasonal.model3)</code></pre></div>
+<div class="figure">
+<img src="figure/plot_seasonal-1.png" alt="plot of chunk plot_seasonal" />
+<p class="caption">plot of chunk plot_seasonal</p>
+</div>
+</div>
+<div class="slide section level2">
+
+<h3 id="compare-the-models-predictions-to-actual-values">Compare the model's predictions to actual values</h3>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#New data = January, February of 2017, so use the period numbers</span>
+new_data &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">period=</span><span class="kw">c</span>(<span class="dv">59</span>,<span class="dv">60</span>))
+pred_sessions &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model3, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)</code></pre></div>
+<ul>
+<li>Actual values, seasonally adjusted, were:</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">actual_sessions &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">78771</span>, <span class="dv">82514</span>)
+adjusted_actual &lt;-<span class="st"> </span><span class="kw">c</span>(actual_sessions[<span class="dv">1</span>] *<span class="st"> </span>adjusted_ratios[<span class="dv">1</span>], actual_sessions[<span class="dv">2</span>] *<span class="st"> </span>adjusted_ratios[<span class="dv">2</span>])</code></pre></div>
+<ul>
+<li>This model just isn't working. We likely have a problem of overfitting and should not deploy it.</li>
+</ul>
+</div>
+<div id="crisp-dm-stage-6-deployment" class="slide section level2">
+<h2>CRISP-DM Stage 6: Deployment</h2>
+<ul>
+<li>Of the two variables of interest, we could only develop a reliable model for one of them, the number of Summon sessions per month</li>
+<li>As data is collected, continue to update the model and compare it to predictions, keeping in mind that prediction intervals vary by month. Luckily, it's more accurate during the semester.</li>
+<li>What if new data falls outside the prediction interval?</li>
+<li>Either the model is incorrect or something has changed</li>
+<li>First, review the data and the model</li>
+<li>If the data and model aren't showing any red flags, consult the SME</li>
+</ul>
+</div>
+<div id="sources" class="slide section level2">
+<h2>Sources</h2>
+<p>Grus, Joel. (2015). <em>Data Science from Scratch</em>. Sebastopol, CA : O'Reilly Media. http://olc1.ohiolink.edu:80/record=b36274979~S0</p>
+<p>Davies, Tilman M. (2016). <em>The book of R: a first course in proramming and statistics</em>. San Francisco: No Starch Press.</p>
+<p>Jason Delaney's videos on time series data http://www.ggc.edu/about-ggc/directory/jason-delaney https://www.youtube.com/channel/UCsF1NvsObHQ33-alJ_RuBIw</p>
+<p>Additional issues in time series data https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/41854.pdf</p>
+<p>http://dmr.cs.umn.edu/Papers/P1999_6.pdf</p>
+</div>
+</body>
+</html>
