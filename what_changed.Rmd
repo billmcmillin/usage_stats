@@ -599,7 +599,7 @@ adjusted_actual
 ---
 
 ##Links
-Slide deck: http://billmcmillin.com/usage_stats
+Slide deck: http://homepages.uc.edu/~mcmillwh/usage_stats/index.html
 
 R file: https://github.com/billmcmillin/usage_stats/blob/master/what_changed.Rmd
 
