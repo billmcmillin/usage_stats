@@ -899,7 +899,19 @@ basic_reg_libses</code></pre></div>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#we want the month numbers as a factor so they can be used as cateogircal variables</span>
 cur_data$d_Mon &lt;-<span class="st"> </span><span class="kw">as.factor</span>(<span class="kw">month</span>(cur_data$Month) %%<span class="st"> </span><span class="dv">12</span>)
 seasonal.model &lt;-<span class="st"> </span><span class="kw">lm</span>(libraries_site_sessions~d_Mon, <span class="dt">data=</span>cur_data)
-seasonal.model2 &lt;-<span class="st"> </span><span class="kw">lm</span>(summon_sessions~d_Mon, <span class="dt">data=</span>cur_data)</code></pre></div>
+seasonal.model2 &lt;-<span class="st"> </span><span class="kw">lm</span>(summon_sessions~d_Mon, <span class="dt">data=</span>cur_data)
+seasonal.model2</code></pre></div>
+<pre><code>## 
+## Call:
+## lm(formula = summon_sessions ~ d_Mon, data = cur_data)
+## 
+## Coefficients:
+## (Intercept)       d_Mon1       d_Mon2       d_Mon3       d_Mon4  
+##     16646.2       8520.6      15764.1      10889.5      14154.8  
+##      d_Mon5       d_Mon6       d_Mon7       d_Mon8       d_Mon9  
+##      4062.6        855.1       1440.3       -628.9      16875.4  
+##     d_Mon10      d_Mon11  
+##     20451.4      16954.6</code></pre>
 </div>
 <div id="crisp-dm-stage-5-evaluation-1" class="slide section level2">
 <h2>CRISP-DM Stage 5: Evaluation</h2>
@@ -968,8 +980,14 @@ seasonal.model2 &lt;-<span class="st"> </span><span class="kw">lm</span>(summon_
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#actual Summon sessions for January and February 2017: 26600, 34370</span>
 new_data &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">d_Mon =</span> <span class="st">&quot;1&quot;</span>)
 pred_basic_reg_smn_jan &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model2, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)
-new_data &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">d_Mon =</span> <span class="st">&quot;2&quot;</span>)
-pred_basic_reg_smn_feb &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model2, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)</code></pre></div>
+pred_basic_reg_smn_jan</code></pre></div>
+<pre><code>##       fit      lwr      upr
+## 1 25166.8 21516.26 28817.34</code></pre>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">new_data &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">d_Mon =</span> <span class="st">&quot;2&quot;</span>)
+pred_basic_reg_smn_feb &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model2, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)
+pred_basic_reg_smn_feb</code></pre></div>
+<pre><code>##        fit      lwr      upr
+## 1 32410.33 29077.86 35742.81</code></pre>
 <ul>
 <li>Seasonal Model 2 for Summon sessions seems to be working.</li>
 </ul>
@@ -1075,7 +1093,15 @@ for(i in <span class="dv">13</span>:(<span class="kw">nrow</span>(cur_data))){
 <li>Find the ratio to the moving average</li>
 </ol>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">cur_forecast &lt;-<span class="st"> </span>cur_data[<span class="dv">13</span>:<span class="kw">nrow</span>(cur_data),]
-cur_forecast[<span class="st">&quot;ratio&quot;</span>] &lt;-<span class="st"> </span>cur_forecast$libraries_site_sessions /<span class="st"> </span>ma</code></pre></div>
+cur_forecast[<span class="st">&quot;ratio&quot;</span>] &lt;-<span class="st"> </span>cur_forecast$libraries_site_sessions /<span class="st"> </span>ma
+cur_forecast$ratio</code></pre></div>
+<pre><code>##  [1] 1.2067157 1.1177247 1.0264044 0.6079384 0.5824443 0.6121967 0.7061314
+##  [8] 1.1212895 1.1190048 0.7421098 0.5042426 0.7425794 0.8329089 0.8248380
+## [15] 0.8610421 1.0921928 1.0423665 0.8034712 0.5182067 0.7364646 0.8784257
+## [22] 1.0194574 1.1357783 0.6042962 0.6402558 0.6337295 0.8851529 1.4289524
+## [29] 1.3545433 1.1116773 0.6762421 0.9551880 1.1225581 1.0239744 0.9893432
+## [36] 0.6835864 0.6726533 0.6542258 0.9865593 1.3157751 1.2879212 1.1178302
+## [43] 0.6621609        NA        NA        NA</code></pre>
 <ol start="4" style="list-style-type: decimal">
 <li>Find the average ratio for each period</li>
 </ol>
@@ -1099,7 +1125,10 @@ unadj_seas_ind</code></pre></div>
 <ul>
 <li>Divide each ratio by the average of the ratios - this sets the average index to 1</li>
 </ul>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">adjusted_ratios &lt;-<span class="st"> </span>unadj_seas_ind /<span class="st"> </span>grp_avg</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">adjusted_ratios &lt;-<span class="st"> </span>unadj_seas_ind /<span class="st"> </span>grp_avg
+adjusted_ratios</code></pre></div>
+<pre><code>##  [1] 1.1487606 1.1332337 1.1407886 0.7186524 0.7184751 0.7202941 0.9771878
+##  [8] 1.4096382 1.3657491 1.0732723 0.6711994 0.9227488</code></pre>
 <ol start="6" style="list-style-type: decimal">
 <li>Adjust the time series</li>
 </ol>
@@ -1175,12 +1204,18 @@ seasonal.model3 &lt;-<span class="st"> </span><span class="kw">lm</span>(seas_se
 <h3 id="compare-the-models-predictions-to-actual-values">Compare the model's predictions to actual values</h3>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co">#New data = January, February of 2017, so use the period numbers</span>
 new_data &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">period=</span><span class="kw">c</span>(<span class="dv">59</span>,<span class="dv">60</span>))
-pred_sessions &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model3, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)</code></pre></div>
+pred_sessions &lt;-<span class="st"> </span><span class="kw">predict</span>(seasonal.model3, new_data, <span class="dt">interval=</span><span class="st">&quot;confidence&quot;</span>, <span class="dt">level=</span><span class="fl">0.95</span>)
+pred_sessions</code></pre></div>
+<pre><code>##        fit      lwr      upr
+## 1 52725.50 25175.73 80275.27
+## 2 49940.04 21695.24 78184.85</code></pre>
 <ul>
 <li>Actual values, seasonally adjusted, were:</li>
 </ul>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">actual_sessions &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">78771</span>, <span class="dv">82514</span>)
-adjusted_actual &lt;-<span class="st"> </span><span class="kw">c</span>(actual_sessions[<span class="dv">1</span>] *<span class="st"> </span>adjusted_ratios[<span class="dv">1</span>], actual_sessions[<span class="dv">2</span>] *<span class="st"> </span>adjusted_ratios[<span class="dv">2</span>])</code></pre></div>
+adjusted_actual &lt;-<span class="st"> </span><span class="kw">c</span>(actual_sessions[<span class="dv">1</span>] *<span class="st"> </span>adjusted_ratios[<span class="dv">1</span>], actual_sessions[<span class="dv">2</span>] *<span class="st"> </span>adjusted_ratios[<span class="dv">2</span>])
+adjusted_actual</code></pre></div>
+<pre><code>## [1] 90489.02 93507.64</code></pre>
 <ul>
 <li>This model just isn't working. We likely have a problem of overfitting and should not deploy it.</li>
 </ul>
@@ -1195,6 +1230,12 @@ adjusted_actual &lt;-<span class="st"> </span><span class="kw">c</span>(actual_s
 <li>First, review the data and the model</li>
 <li>If the data and model aren't showing any red flags, consult the SME</li>
 </ul>
+</div>
+<div id="links" class="slide section level2">
+<h2>Links</h2>
+<p>Slide deck: http://billmcmillin.com/usage_stats</p>
+<p>R file: https://github.com/billmcmillin/usage_stats/blob/master/what_changed.Rmd</p>
+<p>Data transformation script: https://github.com/billmcmillin/usage_stats/blob/master/DB1_append.py</p>
 </div>
 <div id="sources" class="slide section level2">
 <h2>Sources</h2>

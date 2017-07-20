@@ -364,6 +364,7 @@ summary(basic_reg_libses)
 ```{r pred_basic_reg_libses}
 new_data <- data.frame(period=c(59, 60))
 pred_basic_reg <- predict(basic_reg_libses, new_data, interval="confidence", level=0.95)
+pred_basic_reg
 ```
 
 * Predictions are way off, so we'll want to look for a better model
@@ -394,6 +395,7 @@ E(y | t, Month=1) = $\beta_0 + \beta_1 (1) + \beta_2 (0) + ... \beta_12$ (t)
 cur_data$d_Mon <- as.factor(month(cur_data$Month) %% 12)
 seasonal.model <- lm(libraries_site_sessions~d_Mon, data=cur_data)
 seasonal.model2 <- lm(summon_sessions~d_Mon, data=cur_data)
+seasonal.model2
 ```
 
 ##CRISP-DM Stage 5: Evaluation
@@ -411,8 +413,10 @@ summary(seasonal.model2)
 #actual Summon sessions for January and February 2017: 26600, 34370
 new_data <- data.frame(d_Mon = "1")
 pred_basic_reg_smn_jan <- predict(seasonal.model2, new_data, interval="confidence", level=0.95)
+pred_basic_reg_smn_jan
 new_data <- data.frame(d_Mon = "2")
 pred_basic_reg_smn_feb <- predict(seasonal.model2, new_data, interval="confidence", level=0.95)
+pred_basic_reg_smn_feb
 ```
 
 * Seasonal Model 2 for Summon sessions seems to be working. 
@@ -492,6 +496,7 @@ for(i in 13:(nrow(cur_data))){
 ```{r ratio}
 cur_forecast <- cur_data[13:nrow(cur_data),]
 cur_forecast["ratio"] <- cur_forecast$libraries_site_sessions / ma
+cur_forecast$ratio
 ```
 
 
@@ -515,6 +520,7 @@ grp_avg <- mean(unadj_seas_ind, na.rm = TRUE)
 
 ```{r adjust_ratio}
 adjusted_ratios <- unadj_seas_ind / grp_avg
+adjusted_ratios
 ```
 
 6. Adjust the time series
@@ -567,12 +573,14 @@ abline(seasonal.model3)
 #New data = January, February of 2017, so use the period numbers
 new_data <- data.frame(period=c(59,60))
 pred_sessions <- predict(seasonal.model3, new_data, interval="confidence", level=0.95)
+pred_sessions
 ```
 
 * Actual values, seasonally adjusted, were:
 ```{r pred_sess}
 actual_sessions <- c(78771, 82514)
 adjusted_actual <- c(actual_sessions[1] * adjusted_ratios[1], actual_sessions[2] * adjusted_ratios[2])
+adjusted_actual
 ```
 
 * This model just isn't working. We likely have a problem of overfitting and should not deploy it.
@@ -589,6 +597,13 @@ adjusted_actual <- c(actual_sessions[1] * adjusted_ratios[1], actual_sessions[2]
   - If the data and model aren't showing any red flags, consult the SME
 
 ---
+
+##Links
+Slide deck: http://billmcmillin.com/usage_stats
+
+R file: https://github.com/billmcmillin/usage_stats/blob/master/what_changed.Rmd
+
+Data transformation script: https://github.com/billmcmillin/usage_stats/blob/master/DB1_append.py
 
 ##Sources
 
